@@ -21,12 +21,16 @@ const (
   defaultConfFile = "./bvvconfig.yaml"
 
 )
-type Conf struct {
-  ApiKey string `yaml:"apiKey"`
-  ApiSecret string `yaml:"apiSecret"`
+type bvvApiConfig struct {
+  Key string `yaml:"key"`
+  Secret string `yaml:"secret"`
 }
 
-func NewConfig() (config Conf, err error) {
+type bvvConfig struct {
+  Api bvvApiConfig `yaml:"api"`
+}
+
+func NewConfig() (config bvvConfig, err error) {
   configfile := os.Getenv(envConfName)
   if configfile == "" {
     configfile = defaultConfFile
