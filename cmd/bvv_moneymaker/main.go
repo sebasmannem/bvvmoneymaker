@@ -27,13 +27,14 @@ func main() {
 		log.Fatalf("Error occurred on getting config: %e", err)
 	}
 
-	balances, err := bvv.GetBalances(false)
-	if err != nil {
-		log.Fatalf("Error occurred on getting balances: %e", err)
-	}
-	for _, balance := range balances {
-		internal.PrettyPrint(balance)
-	}
+	bvv.Evaluate()
+	//balances, err := bvv.GetMarkets(false)
+	//if err != nil {
+	//	log.Fatalf("Error occurred on getting balances: %e", err)
+	//}
+	//for _, balance := range balances {
+	//	internal.PrettyPrint(balance)
+	//}
 	//bvv.GetBalances()
 	//bvv.GetAssets()
 	//bvv.GetMarkets()

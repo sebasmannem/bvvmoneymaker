@@ -26,31 +26,32 @@ const (
 type bvvApiConfig struct {
 	Key    string `yaml:"key"`
 	Secret string `yaml:"secret"`
+	Debug  bool   `yaml:"debug""`
 }
 
-type bvvBalanceConfig struct {
+type bvvMarketConfig struct {
 	// When more then this level of currency is available, we can sell
 	MinLevel string `yaml:"min"`
 	MaxLevel string `yaml:"max"`
 }
 
 type bvvConfig struct {
-	Api             bvvApiConfig                `yaml:"api"`
-	DefaultCurrency string                      `yaml:"defaultCurrency"`
-	Balances        map[string]bvvBalanceConfig `yaml:"balances"`
+	Api             bvvApiConfig               `yaml:"api"`
+	DefaultCurrency string                     `yaml:"defaultCurrency"`
+	Markets         map[string]bvvMarketConfig `yaml:"markets"`
 }
 
 func NewConfig() (config bvvConfig, err error) {
-	configfile := os.Getenv(envConfName)
-	if configfile == "" {
-		configfile = defaultConfFile
+	configFile := os.Getenv(envConfName)
+	if configFile == "" {
+		configFile = defaultConfFile
 	}
-	configfile, err = filepath.EvalSymlinks(configfile)
+	configFile, err = filepath.EvalSymlinks(configFile)
 	if err != nil {
 		return config, err
 	}
 
-	yamlConfig, err := ioutil.ReadFile(configfile)
+	yamlConfig, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return config, err
 	}

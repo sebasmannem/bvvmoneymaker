@@ -12,9 +12,10 @@ import (
 // e.g. bitvavo.Markets(Options{ "market": "BTC-EUR" })
 type bvvOptions map[string]string
 
-type bvvBalance struct {
-	Currency        string          `yaml:"currency"`
-	NativeAvailable string          `yaml:"nativeAvailable"`
+type bvvMarket struct {
+	Symbol          string          `yaml:"symbol"`
+	NativeSymbol    string          `yaml:"native"`
+	//NativeAvailable string          `yaml:"nativeAvailable"`
 	Available       decimal.Decimal `yaml:"available"`
 	InOrder         decimal.Decimal `yaml:"inOrder"`
 	Price           decimal.Decimal `yaml:"price"`
@@ -25,41 +26,39 @@ type bvvBalance struct {
 type BvvHandler struct {
 	connection bitvavo.Bitvavo
 	config     bvvConfig
-	balances   map[string]bvvBalance
+	markets    map[string]bvvMarket
 	// internal temp list of current
 	prices map[string]decimal.Decimal
 }
 
-func newBvvBalance(symbol string, available string, inOrder string, min string, max string,
-	price decimal.Decimal, nativeCurrency string) (balance bvvBalance, err error) {
+func newBvvMarket(symbol string, nativeSymbol, available string, inOrder string, min string,
+	max string) (market bvvMarket, err error) {
 	decMin, err := decimal.NewFromString(min)
 	if err != nil {
-		return balance, fmt.Errorf("Could not convert min to Decimal %s: %e", min, err)
+		return market, fmt.Errorf("Could not convert min to Decimal %s: %e", min, err)
 	}
 	decMax, err := decimal.NewFromString(max)
 	if err != nil {
-		return balance, fmt.Errorf("Could not convert max to Decimal %s: %e", max, err)
+		return market, fmt.Errorf("Could not convert max to Decimal %s: %e", max, err)
 	}
 	decAvailable, err := decimal.NewFromString(available)
 	if err != nil {
-		return balance, fmt.Errorf("Could not convert available to Decimal %s: %e", available, err)
+		return market, fmt.Errorf("Could not convert available to Decimal %s: %e", available, err)
 	}
 	decInOrder, err := decimal.NewFromString(inOrder)
 	if err != nil {
-		return balance, fmt.Errorf("Could not convert inOrder to Decimal %s: %e", inOrder, err)
+		return market, fmt.Errorf("Could not convert inOrder to Decimal %s: %e", inOrder, err)
 	}
-	balance = bvvBalance{
-		Currency:        symbol,
-		Available:       decAvailable,
-		InOrder:         decInOrder,
-		Price:           price,
-		Min:             decMin,
-		Max:             decMax,
+	market = bvvMarket{
+		Symbol:       symbol,
+		NativeSymbol: nativeSymbol,
+		Available:    decAvailable,
+		InOrder:      decInOrder,
+		Min:          decMin,
+		Max:          decMax,
 	}
-	// With this, pretty-print will also print this one
-	balance.NativeAvailable = fmt.Sprintf("%s %s", nativeCurrency, balance.BalanceNativeCurrency())
 
-	return balance, nil
+	return market, nil
 }
 func NewBvvHandler() (bvv BvvHandler, err error) {
 	bvv.config, err = NewConfig()
@@ -73,14 +72,49 @@ func NewBvvHandler() (bvv BvvHandler, err error) {
 		RestUrl:      "https://api.bitvavo.com/v2",
 		WsUrl:        "wss://ws.bitvavo.com/v2/",
 		AccessWindow: 10000,
-		Debugging:    false,
+		Debugging:    bvv.config.Api.Debug,
 	}
 
 	return bvv, err
 }
 
-func (bvvb bvvBalance) BalanceNativeCurrency() (balance decimal.Decimal) {
-	return bvvb.Price.Mul(bvvb.Available.Add(bvvb.InOrder))
+func (bvv BvvHandler) Evaluate () {
+	markets, err := bvv.GetMarkets(false)
+	if err != nil {
+		log.Fatalf("Error occurred on getting markets: %e", err)
+	}
+	for _, market := range markets {
+		if market.NativeTotal().GreaterThan(market.Max) {
+			fmt.Printf("We should sell %s: %s\n", market.Name(), market.NativeTotal())
+		}
+	}
+}
+
+func (bm bvvMarket) NativeTotal() (balance decimal.Decimal) {
+	return bm.Price.Mul(bm.Available.Add(bm.InOrder))
+}
+
+func (bm bvvMarket) NativeAvailable() (balance decimal.Decimal) {
+	return bm.Price.Mul(bm.Available)
+}
+
+func (bm bvvMarket) NativeOrder() (balance decimal.Decimal) {
+	return bm.Price.Mul(bm.InOrder)
+}
+
+func (bm bvvMarket) Name() (name string) {
+	return fmt.Sprintf("%s-%s", bm.Symbol, bm.NativeSymbol)
+}
+
+func (bm *bvvMarket) SetPrice(prices map[string]decimal.Decimal) (err error) {
+	var found bool
+	bm.Price, found = prices[bm.Name()]
+	if !found {
+		return fmt.Errorf("could not find price for market %s", bm.Name())
+	}
+	// With this, pretty-print will also print this one
+	//bm.NativeAvailable = fmt.Sprintf("%s %s", bm.NativeSymbol, bm.MarketNativeCurrency())
+	return nil
 }
 
 func (bvv BvvHandler) GetBvvTime() (time bitvavo.Time, err error) {
@@ -112,61 +146,70 @@ func (bvv *BvvHandler) getPrices(reset bool) (prices map[string]decimal.Decimal,
 	return prices, err
 }
 
-func (bvv *BvvHandler) GetBalances(reset bool) (balances map[string]bvvBalance, err error) {
-	if len(bvv.balances) > 0 && !reset {
-		return bvv.balances, nil
+func (bvv *BvvHandler) GetMarkets(reset bool) (markets map[string]bvvMarket, err error) {
+	if len(bvv.markets) > 0 && !reset {
+		return bvv.markets, nil
 	}
-	bvv.balances = make(map[string]bvvBalance)
-	balances = make(map[string]bvvBalance)
+	bvv.markets = make(map[string]bvvMarket)
+	markets = make(map[string]bvvMarket)
 
 	_, err = bvv.getPrices(false)
 	if err != nil {
-		return balances, err
+		return markets, err
 	}
 	balanceResponse, balanceErr := bvv.connection.Balance(map[string]string{})
 	if balanceErr != nil {
-		return balances, err
+		return markets, err
 	} else {
 		for _, b := range balanceResponse {
 			if b.Symbol == bvv.config.DefaultCurrency {
 				continue
 			}
-			levels, found := bvv.config.Balances[b.Symbol]
+			levels, found := bvv.config.Markets[b.Symbol]
 			if !found {
-				fmt.Printf("Skipping symbol %s (not in config)\n", b.Symbol)
+				//fmt.Printf("Skipping symbol %s (not in config)\n", b.Symbol)
 				continue
 			}
-			market := fmt.Sprintf("%s-%s", b.Symbol, bvv.config.DefaultCurrency)
-			price, found := bvv.prices[market]
-			if !found {
-				return bvv.balances, fmt.Errorf("Could not find price for symbol %s", b.Symbol)
-			}
-			balance, err := newBvvBalance(b.Symbol, b.Available, b.InOrder, levels.MinLevel, levels.MaxLevel, price,
-				bvv.config.DefaultCurrency)
+			market, err := newBvvMarket(b.Symbol, bvv.config.DefaultCurrency, b.Available, b.InOrder, levels.MinLevel,
+				levels.MaxLevel)
 			if err != nil {
-				return bvv.balances, err
+				return bvv.markets, err
 			}
-			balances[b.Symbol] = balance
+			market.SetPrice(bvv.prices)
+			markets[b.Symbol] = market
 		}
 	}
-	bvv.balances = balances
-	return balances, nil
+	bvv.markets = markets
+	return markets, nil
 }
 
-func (bvv BvvHandler) GetMarkets() (err error) {
-	marketsResponse, marketsErr := bvv.connection.Markets(map[string]string{})
-	if marketsErr != nil {
-		fmt.Println(marketsErr)
+func (bvv BvvHandler) Sell() {
+	placeOrderResponse, placeOrderErr := bvv.connection.PlaceOrder(
+	  "BTC-EUR",
+	  "sell",
+	  "stopLoss",
+	  map[string]string{"amount": "0.1", "triggerType": "price", "triggerReference": "lastTrade", "triggerAmount": "5000"})
+	if placeOrderErr != nil {
+	  fmt.Println(placeOrderErr)
 	} else {
-		for _, value := range marketsResponse {
-			err = PrettyPrint(value)
-			if err != nil {
-				log.Printf("Error on PrettyPrint: %e", err)
-			}
-		}
+	  PrettyPrint(placeOrderResponse)
 	}
-	return nil
 }
+
+//func (bvv BvvHandler) GetMarkets() (err error) {
+//	marketsResponse, marketsErr := bvv.connection.Markets(map[string]string{})
+//	if marketsErr != nil {
+//		fmt.Println(marketsErr)
+//	} else {
+//		for _, value := range marketsResponse {
+//			err = PrettyPrint(value)
+//			if err != nil {
+//				log.Printf("Error on PrettyPrint: %e", err)
+//			}
+//		}
+//	}
+//	return nil
+//}
 
 func (bvv BvvHandler) GetAssets() (err error) {
 	assetsResponse, assetsErr := bvv.connection.Assets(map[string]string{})
