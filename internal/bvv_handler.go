@@ -11,44 +11,32 @@ import (
 // Use this definition to make passing optionals easier.
 // e.g. bitvavo.Markets(Options{ "market": "BTC-EUR" })
 type bvvOptions map[string]string
-type bvvMarkets map[string]*bvvMarket
-
-type bvvMarket struct {
-	From      string          `yaml:"symbol"`
-	To        string          `yaml:"fiat"`
-	inverse   *bvvMarket
-	Available decimal.Decimal `yaml:"available"`
-	InOrder   decimal.Decimal `yaml:"inOrder"`
-	Price     decimal.Decimal `yaml:"price"`
-	Min       decimal.Decimal `yaml:"min"`
-	Max       decimal.Decimal `yaml:"max"`
-}
 
 type BvvHandler struct {
-	connection bitvavo.Bitvavo
+	connection *bitvavo.Bitvavo
 	config     BvvConfig
-	markets    bvvMarkets
+	markets    BvvMarkets
 	// internal temp list of current
 	prices     map[string]decimal.Decimal
 }
 
-func (bh BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, inOrder string, min string,
+func (bh *BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, inOrder string, min string,
 	max string) (market bvvMarket, err error) {
 	decMin, err := decimal.NewFromString(min)
 	if err != nil {
-		return market, fmt.Errorf("Could not convert min to Decimal %s: %e", min, err)
+		return market, fmt.Errorf("could not convert min to Decimal %s: %e", min, err)
 	}
 	decMax, err := decimal.NewFromString(max)
 	if err != nil {
-		return market, fmt.Errorf("Could not convert max to Decimal %s: %e", max, err)
+		return market, fmt.Errorf("could not convert max to Decimal %s: %e", max, err)
 	}
 	decAvailable, err := decimal.NewFromString(available)
 	if err != nil {
-		return market, fmt.Errorf("Could not convert available to Decimal %s: %e", available, err)
+		return market, fmt.Errorf("could not convert available to Decimal %s: %e", available, err)
 	}
 	decInOrder, err := decimal.NewFromString(inOrder)
 	if err != nil {
-		return market, fmt.Errorf("Could not convert inOrder to Decimal %s: %e", inOrder, err)
+		return market, fmt.Errorf("could not convert inOrder to Decimal %s: %e", inOrder, err)
 	}
 	market = bvvMarket{
 		From:         symbol,
@@ -56,7 +44,10 @@ func (bh BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, i
 		Available:    decAvailable,
 		InOrder:      decInOrder,
 	}
-	market.setPrice(bh.prices)
+	err = market.setPrice(bh.prices)
+	if err != nil {
+		return bvvMarket{}, err
+	}
 	market.inverse, err = market.reverse()
 	market.inverse.inverse = &market
 
@@ -73,36 +64,25 @@ func (bh BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, i
 	return market, nil
 }
 
-func (bm bvvMarket) reverse() (reverse *bvvMarket, err error) {
-	if bm.Price.Equal(decimal.NewFromInt32(0)) {
-		return &bvvMarket{}, fmt.Errorf("Cannot create a reverse when the prise is 0")
-	}
-	reverse = &bvvMarket{
-		From:         bm.To,
-		To:           bm.From,
-		Price:        decimal.NewFromInt32(1).Div(bm.Price),
-		Available:    bm.exchange(bm.Available),
-		InOrder:      bm.exchange(bm.InOrder),
-	}
-	return reverse, nil
-}
+func NewBvvHandler() (bh *BvvHandler, err error) {
 
-func NewBvvHandler() (bvv BvvHandler, err error) {
-	bvv.config, err = NewConfig()
+	config, err := NewConfig()
 
 	if err != nil {
-		return bvv, err
+		return bh, err
 	}
-	bvv.connection = bitvavo.Bitvavo{
-		ApiKey:       bvv.config.Api.Key,
-		ApiSecret:    bvv.config.Api.Secret,
+	connection := bitvavo.Bitvavo{
+		ApiKey:       config.Api.Key,
+		ApiSecret:    config.Api.Secret,
 		RestUrl:      "https://api.bitvavo.com/v2",
 		WsUrl:        "wss://ws.bitvavo.com/v2/",
 		AccessWindow: 10000,
-		Debugging:    bvv.config.Api.Debug,
+		Debugging:    config.Api.Debug,
 	}
-
-	return bvv, err
+	return &BvvHandler{
+		config:     config,
+		connection: &connection,
+	}, nil
 }
 
 func (bh BvvHandler) Evaluate () {
@@ -116,32 +96,12 @@ func (bh BvvHandler) Evaluate () {
 			continue
 		}
 		if market.Max.LessThan(market.Total()) {
-			bh.Sell(*market, market.Total().Sub(market.Min))
+			err := bh.Sell(*market, market.Total().Sub(market.Min))
+			if err != nil {
+				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
+			}
 		}
 	}
-}
-
-func (bm bvvMarket) exchange(amount decimal.Decimal) (balance decimal.Decimal) {
-	return bm.Price.Mul(amount)
-}
-
-func (bm bvvMarket) Total() (total decimal.Decimal) {
-	return bm.Available.Add(bm.InOrder)
-}
-
-func (bm bvvMarket) Name() (name string) {
-	return fmt.Sprintf("%s-%s", bm.From, bm.To)
-}
-
-func (bm *bvvMarket) setPrice(prices map[string]decimal.Decimal) (err error) {
-	var found bool
-	bm.Price, found = prices[bm.Name()]
-	if !found {
-		return fmt.Errorf("could not find price for market %s", bm.Name())
-	}
-	// With this, pretty-print will also print this one
-	//bm.FiatAvailable = fmt.Sprintf("%s %s", bm.FiatSymbol, bm.MarketFiatCurrency())
-	return nil
 }
 
 func (bh BvvHandler) GetBvvTime() (time bitvavo.Time, err error) {
@@ -173,12 +133,12 @@ func (bh *BvvHandler) getPrices(reset bool) (prices map[string]decimal.Decimal, 
 	return prices, err
 }
 
-func (bh *BvvHandler) GetMarkets(reset bool) (markets bvvMarkets, err error) {
+func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 	if len(bh.markets) > 0 && !reset {
 		return bh.markets, nil
 	}
-	bh.markets = make(bvvMarkets)
-	markets = make(bvvMarkets)
+	bh.markets = make(BvvMarkets)
+	markets = make(BvvMarkets)
 
 	_, err = bh.getPrices(false)
 	if err != nil {
@@ -210,6 +170,7 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets bvvMarkets, err error) {
 func (bh BvvHandler) Sell(market bvvMarket, amount decimal.Decimal) (err error) {
 	if ! bh.config.ActiveMode {
 		fmt.Printf("We should sell %s: %s\n", market.Name(), amount)
+		bh.PrettyPrint(market.inverse)
 		return nil
 	}
 	fmt.Printf("I am selling %s: %s\n", market.Name(), amount)
@@ -434,8 +395,10 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 //   }
 // }
 
-func testWebsocket(bitvavo bitvavo.Bitvavo) {
+func testWebsocket(bitvavo *bitvavo.Bitvavo) {
 	websocket, errChannel := bitvavo.NewWebsocket()
+	// Once close is called on the websocket, nothing will be received until bitvavo.NewWebsocket() is called again.
+	defer websocket.Close()
 
 	timeChannel := websocket.Time()
 	// marketsChannel := websocket.Markets(bvvOptions{})
@@ -547,6 +510,4 @@ func testWebsocket(bitvavo bitvavo.Bitvavo) {
 		}
 	}
 
-	// Once close is called on the websocket, nothing will be received until bitvavo.NewWebsocket() is called again.
-	websocket.Close()
 }
