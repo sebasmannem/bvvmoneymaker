@@ -2,8 +2,9 @@ package internal
 
 import (
 	"fmt"
-  "github.com/bitvavo/go-bitvavo-api"
-  "log"
+	"log"
+
+	"github.com/bitvavo/go-bitvavo-api"
 
 	"github.com/shopspring/decimal"
 )
@@ -17,7 +18,7 @@ type BvvHandler struct {
 	config     BvvConfig
 	markets    BvvMarkets
 	// internal temp list of current
-	prices     map[string]decimal.Decimal
+	prices map[string]decimal.Decimal
 }
 
 func (bh *BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, inOrder string, min string,
@@ -39,10 +40,10 @@ func (bh *BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, 
 		return market, fmt.Errorf("could not convert inOrder to Decimal %s: %e", inOrder, err)
 	}
 	market = bvvMarket{
-		From:         symbol,
-		To:           fiatSymbol,
-		Available:    decAvailable,
-		InOrder:      decInOrder,
+		From:      symbol,
+		To:        fiatSymbol,
+		Available: decAvailable,
+		InOrder:   decInOrder,
 	}
 	err = market.setPrice(bh.prices)
 	if err != nil {
@@ -85,7 +86,7 @@ func NewBvvHandler() (bh *BvvHandler, err error) {
 	}, nil
 }
 
-func (bh BvvHandler) Evaluate () {
+func (bh BvvHandler) Evaluate() {
 	markets, err := bh.GetMarkets(false)
 	if err != nil {
 		log.Fatalf("Error occurred on getting markets: %e", err)
@@ -168,7 +169,7 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 }
 
 func (bh BvvHandler) Sell(market bvvMarket, amount decimal.Decimal) (err error) {
-	if ! bh.config.ActiveMode {
+	if !bh.config.ActiveMode {
 		fmt.Printf("We should sell %s: %s\n", market.Name(), amount)
 		bh.PrettyPrint(market.inverse)
 		return nil
@@ -176,14 +177,14 @@ func (bh BvvHandler) Sell(market bvvMarket, amount decimal.Decimal) (err error) 
 	fmt.Printf("I am selling %s: %s\n", market.Name(), amount)
 	bh.PrettyPrint(market.inverse)
 	placeOrderResponse, err := bh.connection.PlaceOrder(
-	  market.Name(),
-	  "sell",
-	  "market",
-	  bvvOptions{"amount": amount.String()})
+		market.Name(),
+		"sell",
+		"market",
+		bvvOptions{"amount": amount.String()})
 	if err != nil {
 		return err
 	} else {
-	  bh.PrettyPrint(placeOrderResponse)
+		bh.PrettyPrint(placeOrderResponse)
 	}
 	return nil
 }
@@ -223,6 +224,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 		}
 	}
 }
+
 //fmt.Println("Book")
 //bookResponse, bookErr := bitvavo.Book("BTC-EUR", bvvOptions{})
 //if bookErr != nil {
@@ -394,120 +396,3 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 //     PrettyPrint(withdrawal)
 //   }
 // }
-
-func testWebsocket(bitvavo *bitvavo.Bitvavo) {
-	websocket, errChannel := bitvavo.NewWebsocket()
-	// Once close is called on the websocket, nothing will be received until bitvavo.NewWebsocket() is called again.
-	defer websocket.Close()
-
-	timeChannel := websocket.Time()
-	// marketsChannel := websocket.Markets(bvvOptions{})
-	// assetsChannel := websocket.Assets(bvvOptions{})
-
-	// bookChannel := websocket.Book("BTC-EUR", bvvOptions{})
-	// publicTradesChannel := websocket.PublicTrades("BTC-EUR", bvvOptions{})
-	// candlesChannel := websocket.Candles("LTC-EUR", "1h", bvvOptions{})
-
-	// tickerPriceChannel := websocket.TickerPrice(bvvOptions{})
-	// tickerBookChannel := websocket.TickerBook(bvvOptions{})
-	// ticker24hChannel := websocket.Ticker24h(bvvOptions{})
-
-	// placeOrderChannel := websocket.PlaceOrder("BTC-EUR", "buy", "limit", bvvOptions{"amount": "0.1", "price": "2000"})
-	// updateOrderChannel := websocket.UpdateOrder("BTC-EUR", "556314b8-f719-466f-b63d-bf429b724ad2", bvvOptions{"amount": "0.2"})
-	// getOrderChannel := websocket.GetOrder("BTC-EUR", "556314b8-f719-466f-b63d-bf429b724ad2")
-	// cancelOrderChannel := websocket.CancelOrder("BTC-EUR", "556314b8-f719-466f-b63d-bf429b724ad2")
-	// getOrdersChannel := websocket.GetOrders("BTC-EUR", bvvOptions{})
-	// cancelOrdersChannel := websocket.CancelOrders(bvvOptions{"market": "BTC-EUR"})
-	// ordersOpenChannel := websocket.OrdersOpen(bvvOptions{})
-
-	// tradesChannel := websocket.Trades("BTC-EUR", bvvOptions{})
-
-	// accountChannel := websocket.Account()
-	// balanceChannel := websocket.Balance(bvvOptions{})
-	// depositAssetsChannel := websocket.DepositAssets("BTC")
-	// withdrawAssetsChannel := websocket.WithdrawAssets("EUR", "50", "NL123BIM", bvvOptions{})
-	// depositHistoryChannel := websocket.DepositHistory(bvvOptions{})
-	// withdrawalHistoryChannel := websocket.WithdrawalHistory(bvvOptions{})
-
-	// subscriptionTickerChannel := websocket.SubscriptionTicker("BTC-EUR")
-	// subscriptionTicker24hChannel := websocket.SubscriptionTicker24h("BTC-EUR")
-	// subscriptionAccountOrderChannel, subscriptionAccountFillChannel := websocket.SubscriptionAccount("BTC-EUR")
-	// subscriptionCandlesChannel := websocket.SubscriptionCandles("BTC-EUR", "1h")
-	// subscriptionTradesChannel := websocket.SubscriptionTrades("BTC-EUR")
-	// subscriptionBookUpdateChannel := websocket.SubscriptionBookUpdate("BTC-EUR")
-	// subscriptionBookChannel := websocket.SubscriptionBook("BTC-EUR", bvvOptions{})
-
-	// Keeps program running
-	for {
-		select {
-		case result := <-errChannel:
-			fmt.Println("Error received", result)
-		case result := <-timeChannel:
-			err := PrettyPrint(result)
-			if err != nil {
-				log.Printf("Error on PrettyPrint: %e", err)
-			}
-			// case result := <-marketsChannel:
-			//   PrettyPrint(result)
-			// case result := <-assetsChannel:
-			//   PrettyPrint(result)
-			// case result := <-bookChannel:
-			//   PrettyPrint(result)
-			// case result := <-publicTradesChannel:
-			//   PrettyPrint(result)
-			// case result := <-candlesChannel:
-			//   PrettyPrint(result)
-			// case result := <-tickerPriceChannel:
-			//   PrettyPrint(result)
-			// case result := <-tickerBookChannel:
-			//   PrettyPrint(result)
-			// case result := <-ticker24hChannel:
-			//   PrettyPrint(result)
-			// case result := <-placeOrderChannel:
-			//   PrettyPrint(result)
-			// case result := <-getOrderChannel:
-			//   PrettyPrint(result)
-			// case result := <-updateOrderChannel:
-			//   PrettyPrint(result)
-			// case result := <-cancelOrderChannel:
-			//   PrettyPrint(result)
-			// case result := <-getOrdersChannel:
-			//   PrettyPrint(result)
-			// case result := <-cancelOrdersChannel:
-			//   PrettyPrint(result)
-			// case result := <-ordersOpenChannel:
-			//   PrettyPrint(result)
-			// case result := <-tradesChannel:
-			//   PrettyPrint(result)
-			// case result := <-accountChannel:
-			//   PrettyPrint(result)
-			// case result := <-balanceChannel:
-			//   PrettyPrint(result)
-			// case result := <-depositAssetsChannel:
-			//   PrettyPrint(result)
-			// case result := <-withdrawAssetsChannel:
-			//   PrettyPrint(result)
-			// case result := <-depositHistoryChannel:
-			//   PrettyPrint(result)
-			// case result := <-withdrawalHistoryChannel:
-			//   PrettyPrint(result)
-			// case result := <-subscriptionTickerChannel:
-			//   PrettyPrint(result)
-			// case result := <-subscriptionTicker24hChannel:
-			//     PrettyPrint(result)
-			// case result := <-subscriptionAccountOrderChannel:
-			//   PrettyPrint(result)
-			// case result := <-subscriptionAccountFillChannel:
-			//   PrettyPrint(result)
-			// case result := <-subscriptionCandlesChannel:
-			//   PrettyPrint(result)
-			// case result := <-subscriptionTradesChannel:
-			//   PrettyPrint(result)
-			// case result := <-subscriptionBookUpdateChannel:
-			// PrettyPrint(result)
-			// case result := <-subscriptionBookChannel:
-			//   PrettyPrint(result)
-		}
-	}
-
-}

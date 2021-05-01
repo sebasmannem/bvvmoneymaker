@@ -20,7 +20,7 @@ import (
 const (
 	envConfName     = "BVVCONFIG"
 	defaultConfFile = "./bvvconfig.yaml"
-	Fiat = "EUR"
+	Fiat            = "EUR"
 )
 
 type bvvApiConfig struct {

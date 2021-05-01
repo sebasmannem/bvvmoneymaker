@@ -2,14 +2,15 @@ package internal
 
 import (
 	"fmt"
+
 	"github.com/shopspring/decimal"
 )
 
 type BvvMarkets map[string]*bvvMarket
 
 type bvvMarket struct {
-	From      string          `yaml:"symbol"`
-	To        string          `yaml:"fiat"`
+	From      string `yaml:"symbol"`
+	To        string `yaml:"fiat"`
 	inverse   *bvvMarket
 	Available decimal.Decimal `yaml:"available"`
 	InOrder   decimal.Decimal `yaml:"inOrder"`
@@ -23,11 +24,11 @@ func (bm bvvMarket) reverse() (reverse *bvvMarket, err error) {
 		return &bvvMarket{}, fmt.Errorf("cannot create a reverse when the prise is 0")
 	}
 	reverse = &bvvMarket{
-		From:         bm.To,
-		To:           bm.From,
-		Price:        decimal.NewFromInt32(1).Div(bm.Price),
-		Available:    bm.exchange(bm.Available),
-		InOrder:      bm.exchange(bm.InOrder),
+		From:      bm.To,
+		To:        bm.From,
+		Price:     decimal.NewFromInt32(1).Div(bm.Price),
+		Available: bm.exchange(bm.Available),
+		InOrder:   bm.exchange(bm.InOrder),
 	}
 	return reverse, nil
 }
