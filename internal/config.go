@@ -20,13 +20,13 @@ import (
 const (
 	envConfName     = "BVVCONFIG"
 	defaultConfFile = "./bvvconfig.yaml"
-	defaultCurrency = "EUR"
+	Fiat = "EUR"
 )
 
 type bvvApiConfig struct {
 	Key    string `yaml:"key"`
 	Secret string `yaml:"secret"`
-	Debug  bool   `yaml:"debug""`
+	Debug  bool   `yaml:"debug"`
 }
 
 type bvvMarketConfig struct {
@@ -35,13 +35,15 @@ type bvvMarketConfig struct {
 	MaxLevel string `yaml:"max"`
 }
 
-type bvvConfig struct {
-	Api             bvvApiConfig               `yaml:"api"`
-	DefaultCurrency string                     `yaml:"defaultCurrency"`
-	Markets         map[string]bvvMarketConfig `yaml:"markets"`
+type BvvConfig struct {
+	Api        bvvApiConfig               `yaml:"api"`
+	Fiat       string                     `yaml:"fiat"`
+	Markets    map[string]bvvMarketConfig `yaml:"markets"`
+	ActiveMode bool                       `yaml:"activeMode"`
+	Debug      bool                       `yaml:"debug"`
 }
 
-func NewConfig() (config bvvConfig, err error) {
+func NewConfig() (config BvvConfig, err error) {
 	configFile := os.Getenv(envConfName)
 	if configFile == "" {
 		configFile = defaultConfFile
@@ -56,8 +58,8 @@ func NewConfig() (config bvvConfig, err error) {
 		return config, err
 	}
 	err = yaml.Unmarshal(yamlConfig, &config)
-	if config.DefaultCurrency == "" {
-		config.DefaultCurrency = defaultCurrency
+	if config.Fiat == "" {
+		config.Fiat = Fiat
 	}
 	return config, err
 }
