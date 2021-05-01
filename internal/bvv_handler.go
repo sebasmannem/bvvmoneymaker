@@ -21,6 +21,46 @@ type BvvHandler struct {
 	prices map[string]decimal.Decimal
 }
 
+func NewBvvHandler() (bh *BvvHandler, err error) {
+
+	config, err := NewConfig()
+
+	if err != nil {
+		return bh, err
+	}
+	connection := bitvavo.Bitvavo{
+		ApiKey:       config.Api.Key,
+		ApiSecret:    config.Api.Secret,
+		RestUrl:      "https://api.bitvavo.com/v2",
+		WsUrl:        "wss://ws.bitvavo.com/v2/",
+		AccessWindow: 10000,
+		Debugging:    config.Api.Debug,
+	}
+	return &BvvHandler{
+		config:     config,
+		connection: &connection,
+	}, nil
+}
+
+func (bh BvvHandler) Evaluate() {
+	markets, err := bh.GetMarkets(false)
+	if err != nil {
+		log.Fatalf("Error occurred on getting markets: %e", err)
+	}
+	for _, market := range markets {
+		if market.To != bh.config.Fiat {
+			// This probably is a reverse market. Skipping.
+			continue
+		}
+		if market.Max.LessThan(market.Total()) {
+			err := bh.Sell(*market, market.Total().Sub(market.Min))
+			if err != nil {
+				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
+			}
+		}
+	}
+}
+
 func (bh *BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, inOrder string, min string,
 	max string) (market bvvMarket, err error) {
 	decMin, err := decimal.NewFromString(min)
@@ -63,46 +103,6 @@ func (bh *BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, 
 	bh.markets[market.Name()] = &market
 	bh.markets[market.inverse.Name()] = market.inverse
 	return market, nil
-}
-
-func NewBvvHandler() (bh *BvvHandler, err error) {
-
-	config, err := NewConfig()
-
-	if err != nil {
-		return bh, err
-	}
-	connection := bitvavo.Bitvavo{
-		ApiKey:       config.Api.Key,
-		ApiSecret:    config.Api.Secret,
-		RestUrl:      "https://api.bitvavo.com/v2",
-		WsUrl:        "wss://ws.bitvavo.com/v2/",
-		AccessWindow: 10000,
-		Debugging:    config.Api.Debug,
-	}
-	return &BvvHandler{
-		config:     config,
-		connection: &connection,
-	}, nil
-}
-
-func (bh BvvHandler) Evaluate() {
-	markets, err := bh.GetMarkets(false)
-	if err != nil {
-		log.Fatalf("Error occurred on getting markets: %e", err)
-	}
-	for _, market := range markets {
-		if market.To != bh.config.Fiat {
-			// This probably is a reverse market. Skipping.
-			continue
-		}
-		if market.Max.LessThan(market.Total()) {
-			err := bh.Sell(*market, market.Total().Sub(market.Min))
-			if err != nil {
-				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
-			}
-		}
-	}
 }
 
 func (bh BvvHandler) GetBvvTime() (time bitvavo.Time, err error) {
