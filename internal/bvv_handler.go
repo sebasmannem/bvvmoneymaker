@@ -14,11 +14,11 @@ import (
 type bvvOptions map[string]string
 
 type BvvHandler struct {
-	connection *bitvavo.Bitvavo
-	config     BvvConfig
-	markets    BvvMarkets
+	connection     *bitvavo.Bitvavo
+	config         BvvConfig
+	markets        BvvMarkets
 	// internal temp list of current
-	prices map[string]decimal.Decimal
+	prices         map[string]decimal.Decimal
 }
 
 func NewBvvHandler() (bh *BvvHandler, err error) {
@@ -59,50 +59,6 @@ func (bh BvvHandler) Evaluate() {
 			}
 		}
 	}
-}
-
-func (bh *BvvHandler) newBvvMarket(symbol string, fiatSymbol, available string, inOrder string, min string,
-	max string) (market bvvMarket, err error) {
-	decMin, err := decimal.NewFromString(min)
-	if err != nil {
-		return market, fmt.Errorf("could not convert min to Decimal %s: %e", min, err)
-	}
-	decMax, err := decimal.NewFromString(max)
-	if err != nil {
-		return market, fmt.Errorf("could not convert max to Decimal %s: %e", max, err)
-	}
-	decAvailable, err := decimal.NewFromString(available)
-	if err != nil {
-		return market, fmt.Errorf("could not convert available to Decimal %s: %e", available, err)
-	}
-	decInOrder, err := decimal.NewFromString(inOrder)
-	if err != nil {
-		return market, fmt.Errorf("could not convert inOrder to Decimal %s: %e", inOrder, err)
-	}
-	market = bvvMarket{
-		From:      symbol,
-		To:        fiatSymbol,
-		Available: decAvailable,
-		InOrder:   decInOrder,
-	}
-	err = market.setPrice(bh.prices)
-	if err != nil {
-		return bvvMarket{}, err
-	}
-	market.inverse, err = market.reverse()
-	market.inverse.inverse = &market
-
-	// Because Max and Min are in EUR, not in Crypto, we set them in inverse and calculate for market from inverse
-	market.inverse.Max = decMax
-	market.inverse.Min = decMin
-	market.Max = market.inverse.exchange(decMax)
-	market.Min = market.inverse.exchange(decMin)
-	if err != nil {
-		return bvvMarket{}, err
-	}
-	bh.markets[market.Name()] = &market
-	bh.markets[market.inverse.Name()] = market.inverse
-	return market, nil
 }
 
 func (bh BvvHandler) GetBvvTime() (time bitvavo.Time, err error) {
@@ -153,13 +109,13 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 			if b.Symbol == bh.config.Fiat {
 				continue
 			}
-			levels, found := bh.config.Markets[b.Symbol]
-			if !found {
-				//fmt.Printf("Skipping symbol %s (not in config)\n", b.Symbol)
+			_, err := NewBvvMarket(bh, b.Symbol, bh.config.Fiat, b.Available, b.InOrder)
+			if mErr, ok  := err.(MarketNotInConfigError); ok {
+				if bh.config.Debug {
+					fmt.Printf("%s.\n", mErr.Error())
+				}
 				continue
 			}
-			_, err := bh.newBvvMarket(b.Symbol, bh.config.Fiat, b.Available, b.InOrder, levels.MinLevel,
-				levels.MaxLevel)
 			if err != nil {
 				return bh.markets, err
 			}
@@ -168,7 +124,7 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 	return bh.markets, nil
 }
 
-func (bh BvvHandler) Sell(market bvvMarket, amount decimal.Decimal) (err error) {
+func (bh BvvHandler) Sell(market BvvMarket, amount decimal.Decimal) (err error) {
 	if !bh.config.ActiveMode {
 		fmt.Printf("We should sell %s: %s\n", market.Name(), amount)
 		bh.PrettyPrint(market.inverse)

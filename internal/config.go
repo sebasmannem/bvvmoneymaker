@@ -33,6 +33,7 @@ type bvvMarketConfig struct {
 	// When more then this level of currency is available, we can sell
 	MinLevel string `yaml:"min"`
 	MaxLevel string `yaml:"max"`
+	EnableMA bool   `yaml:"enableMovingAverage"`
 }
 
 type BvvConfig struct {
