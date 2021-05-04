@@ -2,8 +2,7 @@ package internal
 
 import (
 	"fmt"
-	"time"
-
+	"github.com/sebasmannem/bvvmoneymaker/pkg/moving_average"
 	"github.com/shopspring/decimal"
 )
 
@@ -30,7 +29,7 @@ type BvvMarket struct {
 	Price      decimal.Decimal `yaml:"price"`
 	Min        decimal.Decimal `yaml:"min"`
 	Max        decimal.Decimal `yaml:"max"`
-	ma         MovingAverage
+	mah        *MAHandler
 }
 
 func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, inOrder string) (market BvvMarket,
@@ -42,11 +41,15 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 
 	decMin, err := decimal.NewFromString(config.MinLevel)
 	if err != nil {
-		return market, fmt.Errorf("could not convert min to Decimal %s: %e", config.MinLevel, err)
+		decMin = decimal.Zero
+	} else if decMin.LessThan(decimal.Zero) {
+		decMin = decimal.Zero
 	}
 	decMax, err := decimal.NewFromString(config.MaxLevel)
 	if err != nil {
-		return market, fmt.Errorf("could not convert max to Decimal %s: %e", config.MaxLevel, err)
+		decMax = decimal.Zero
+	} else if decMax.LessThan(decMin) {
+		decMax = decimal.Zero
 	}
 	decAvailable, err := decimal.NewFromString(available)
 	if err != nil {
@@ -64,11 +67,8 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 		Available: decAvailable,
 		InOrder:   decInOrder,
 	}
-	if config.EnableMA {
-		// For now hardcoded to daily candles, for last 4 years
-		end := time.Now()
-		start := end.AddDate(0, 0, int(0 - bvvMALimit))
-		market.ma, err = NewMovingAverage(&market, bvvMAInterval, bvvMALimit, start.Unix()*1000, end.Unix()*1000)
+	if config.MAConfig.Enabled() {
+		market.mah, err = NewMAHandler(&market, config.MAConfig)
 		if err != nil {
 			return BvvMarket{}, nil
 		}
@@ -80,11 +80,19 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 	market.inverse, err = market.reverse()
 	market.inverse.inverse = &market
 
-	// Because Max and Min are in EUR, not in Crypto, we set them in inverse and calculate for market from inverse
-	market.inverse.Max = decMax
-	market.inverse.Min = decMin
-	market.Max = market.inverse.exchange(decMax)
-	market.Min = market.inverse.exchange(decMin)
+	if decMin.Equal(decimal.Zero) || decMax.Equal(decimal.Zero) {
+		fmt.Printf("Disabling Min/Max for %s\n", market.Name())
+		market.inverse.Max = decimal.Zero
+		market.inverse.Min = decimal.Zero
+		market.Max = decimal.Zero
+		market.Min = decimal.Zero
+	} else {
+		// Because Max and Min are in EUR, not in Crypto, we set them in inverse and calculate for market from inverse
+		market.inverse.Max = decMax
+		market.inverse.Min = decMin
+		market.Max = market.inverse.exchange(decMax)
+		market.Min = market.inverse.exchange(decMin)
+	}
 	if err != nil {
 		return BvvMarket{}, err
 	}
@@ -92,7 +100,6 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 	bh.markets[market.inverse.Name()] = market.inverse
 	return market, nil
 }
-
 
 func (bm BvvMarket) reverse() (reverse *BvvMarket, err error) {
 	if bm.Price.Equal(decimal.NewFromInt32(0)) {
@@ -110,6 +117,20 @@ func (bm BvvMarket) reverse() (reverse *BvvMarket, err error) {
 
 func (bm BvvMarket) exchange(amount decimal.Decimal) (balance decimal.Decimal) {
 	return bm.Price.Mul(amount)
+}
+
+func (bm BvvMarket) GetExpectedRate() (total decimal.Decimal, err error) {
+	if bm.mah == nil {
+		return decimal.Zero, fmt.Errorf("cannot get expected rate without MAHandler")
+	}
+	return bm.mah.ema.GetWithOffset()
+}
+
+func (bm BvvMarket) GetBandWidth() (bw moving_average.MABandwidth, err error) {
+	if bm.mah == nil {
+		return moving_average.MABandwidth{}, fmt.Errorf("cannot get bandwidth without MAHandler")
+	}
+	return bm.mah.ema.GetBandwidth()
 }
 
 func (bm BvvMarket) Total() (total decimal.Decimal) {
