@@ -70,7 +70,7 @@ func (ema *EMA) AddValue(value decimal.Decimal) {
 	ema.value.Add(exp)
 	ema.history = append(ema.history, EMAHistVal{abs: value, exp: exp})
 	if ema.value.count >= ema.window {
-		ema.value.Sub(ema.history[0].exp)
+		_ = ema.value.Sub(ema.history[0].exp)
 		ema.history = ema.history[1:]
 		avg, _ := ema.value.Get()
 		ema.offset.Add(exp - avg)

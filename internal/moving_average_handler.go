@@ -8,14 +8,6 @@ import (
 	"sort"
 )
 
-const (
-	// This is the interval one candle takes
-	bvvMAInterval string = "1d"
-	// How much candles, this is a bit more then 4 years for day candles
-	bvvMALimit int64 = 1500
-	//bvvMALimit int64 = 42
-)
-
 type MABuckets []MABucket
 
 type MABucket struct {
@@ -33,8 +25,6 @@ type MAHandler struct {
 	limit       int64
 	buckets     MABuckets
 	ema         *moving_average.EMA
-	mAOffset    float64
-	lastAverage float64
 }
 
 func NewMAHandler(market *BvvMarket, config bvvMAConfig) (mah *MAHandler, err error) {
