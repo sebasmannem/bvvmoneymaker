@@ -31,7 +31,7 @@ type bvvApiConfig struct {
 
 type bvvMAConfig struct {
 	Interval string `yaml:"interval"`
-	Window   int    `yaml:"window"`
+	Window   uint   `yaml:"window"`
 	Limit    int64  `yaml:"limit"`
 }
 

@@ -29,10 +29,7 @@ type MAHandler struct {
 
 func NewMAHandler(market *BvvMarket, config bvvMAConfig) (mah *MAHandler, err error) {
 	config.SetDefaults()
-	ema, err := moving_average.NewEMA(config.Window)
-	if err != nil {
-		return mah, err
-	}
+	ema := moving_average.NewEMA(config.Window)
 	mah = &MAHandler{
 		market: market,
 		interval: config.Interval,

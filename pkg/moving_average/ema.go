@@ -6,20 +6,20 @@ import (
 	"math"
 )
 
-type EMAAvgVal struct {
+type eMAAvgVal struct {
 	sum   float64
-	count int
+	count uint
 }
 
-func (av *EMAAvgVal) Add(value float64) {
+func (av *eMAAvgVal) Add(value float64) {
 	av.sum += value
 	av.count += 1
 }
 
-func (av *EMAAvgVal) Sub(value float64) error {
+func (av *eMAAvgVal) Sub(value float64) error {
 	if av.count <= 1 {
 		return MAError{
-			fmt.Errorf("cannot substract EMAAvgVal with count 0"),
+			fmt.Errorf("cannot substract eMAAvgVal with count 0"),
 		}
 	}
 	av.sum -= value
@@ -27,10 +27,10 @@ func (av *EMAAvgVal) Sub(value float64) error {
 	return nil
 }
 
-func (av EMAAvgVal) Get() (value float64, err error) {
+func (av eMAAvgVal) Get() (value float64, err error) {
 	if av.count < 1 {
 		return value, MAError{
-			fmt.Errorf("cannot get EMAAvgVal with count 0"),
+			fmt.Errorf("cannot get eMAAvgVal with count 0"),
 		}
 	}
 	return av.sum / float64(av.count),nil
@@ -46,20 +46,14 @@ type EMAHistVal struct {
 }
 
 type EMA struct {
-	value   EMAAvgVal
-	offset  EMAAvgVal
+	value   eMAAvgVal
+	offset  eMAAvgVal
 	history EMAHistVals
-	window  int
+	window  uint
 }
 
-func NewEMA(window int) (ema *EMA, err error) {
-	if window < 1 {
-		return ema, MAError{
-			fmt.Errorf("invalid window size %d", window),
-		}
-	}
-	ema = &EMA{window: window}
-	return ema, nil
+func NewEMA(window uint) (ema *EMA) {
+	return &EMA{window: window}
 }
 
 func (ema *EMA) AddValue(value decimal.Decimal) {
@@ -69,16 +63,27 @@ func (ema *EMA) AddValue(value decimal.Decimal) {
 	exp := math.Log(fValue)
 	ema.value.Add(exp)
 	ema.history = append(ema.history, EMAHistVal{abs: value, exp: exp})
-	if ema.value.count >= ema.window {
+	if ema.value.count > ema.window && ema.window > 0 {
 		_ = ema.value.Sub(ema.history[0].exp)
 		ema.history = ema.history[1:]
-		avg, _ := ema.value.Get()
-		ema.offset.Add(exp - avg)
 	}
+	avg, _ := ema.value.Get()
+	ema.offset.Add(exp - avg)
 }
 
-func (ema EMA) Get() (value float64, err error) {
+func (ema EMA) GetExp() (value float64, err error) {
 	return ema.value.Get()
+}
+
+func (ema EMA) Get() (ret decimal.Decimal, err error) {
+	exp, err := ema.value.Get()
+	if err != nil {
+		// Weird, so we have an offset, but we don't have a value?
+		return
+	}
+	// This is where we can convert our exp back to a decimal
+	dec := math.Exp(exp)
+	return decimal.NewFromFloat(dec), nil
 }
 
 func (ema EMA) GetWithOffset() (ret decimal.Decimal, err error) {
@@ -86,15 +91,14 @@ func (ema EMA) GetWithOffset() (ret decimal.Decimal, err error) {
 	if err != nil {
 		return
 	}
-	fValue, err := ema.value.Get()
+	exp, err := ema.value.Get()
 	if err != nil {
 		// Weird, so we have an offset, but we don't have a value?
 		return
 	}
 	// This is where we can convert our exp back to a decimal
-	fRet := math.Exp(fValue+offset)
-	ret = decimal.NewFromFloat(fRet)
-	return ret, nil
+	dec := math.Exp(exp+offset)
+	return decimal.NewFromFloat(dec), nil
 }
 
 func (ema EMA) GetBandwidth() (bw MABandwidth, err error) {
@@ -113,6 +117,6 @@ func (ema EMA) GetBandwidth() (bw MABandwidth, err error) {
 			bw.Max = val.abs
 		}
 	}
-	bw.Cur, err = ema.GetWithOffset()
+	bw.Cur, err = ema.Get()
 	return bw, err
 }
