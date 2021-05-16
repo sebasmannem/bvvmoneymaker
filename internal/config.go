@@ -29,11 +29,36 @@ type bvvApiConfig struct {
 	Debug  bool   `yaml:"debug"`
 }
 
+type bvvMAConfig struct {
+	Interval string `yaml:"interval"`
+	Window   int    `yaml:"window"`
+	Limit    int64  `yaml:"limit"`
+}
+
+func (mac *bvvMAConfig) Enabled() bool {
+	if mac.Window > 0 || mac.Limit > 0 || mac.Interval != "" {
+		return true
+	}
+	return false
+}
+
+func (mac *bvvMAConfig) SetDefaults() {
+	if mac.Interval == "" {
+		mac.Interval = "1d"
+	}
+	if mac.Window == 0 {
+		mac.Window = 42
+	}
+	if mac.Limit == 0 {
+		mac.Limit = 2 * int64(mac.Window)
+	}
+}
+
 type bvvMarketConfig struct {
 	// When more then this level of currency is available, we can sell
-	MinLevel string `yaml:"min"`
-	MaxLevel string `yaml:"max"`
-	EnableMA bool   `yaml:"enableMovingAverage"`
+	MinLevel string      `yaml:"min"`
+	MaxLevel string      `yaml:"max"`
+	MAConfig bvvMAConfig `yaml:"ema"`
 }
 
 type BvvConfig struct {
