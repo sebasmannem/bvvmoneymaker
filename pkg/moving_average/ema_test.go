@@ -15,7 +15,7 @@ func TestEMAAvgVal(t *testing.T) {
 	val1 := decimal.NewFromInt(1)
 	val2 := decimal.NewFromInt(2)
 	val3 := decimal.NewFromInt(8)
-	// Not that the exp average of 2 and 8 is 4
+	// Note that the exp average of 2 and 8 is 4
 	avg := decimal.NewFromInt(4)
 	ema.AddValue(val1)
 	emaAvg, err := ema.Get()
@@ -26,6 +26,28 @@ func TestEMAAvgVal(t *testing.T) {
 	emaAvg, err = ema.Get()
 	assert.NoError(t, err)
 	assert.Equal(t, avg, emaAvg)
+}
+
+func TestEMAClone(t *testing.T) {
+	var err error
+	var i int64
+	// Note: This was captured from a previous run.
+	avg := decimal.NewFromFloat(37.993)
+	ema := moving_average.NewEMA(100)
+	for i = 1; i <= 99; i++ {
+		ema.AddValue(decimal.NewFromInt(i))
+	}
+	_, err = ema.Clone(100)
+	assert.Error(t, err)
+	ema.AddValue(decimal.NewFromInt(100))
+	_, err = ema.Clone(101)
+	assert.Error(t, err)
+	clone, err := ema.Clone(100)
+	assert.NoError(t, err)
+	emaAvg, err := clone.Get()
+	assert.NoError(t, err)
+	assert.True(t, avg.Equal(emaAvg.Round(3)), "Avg with offset values differ: %s and %s",
+		avg, emaAvg)
 }
 
 func TestEMAAvgValNilWindow(t *testing.T) {

@@ -56,6 +56,20 @@ func NewEMA(window uint) (ema *EMA) {
 	return &EMA{window: window}
 }
 
+func (ema *EMA) Clone(window uint) (clone *EMA, err error) {
+	if len(ema.history) < int(window) {
+		return clone, MAError{
+			fmt.Errorf("cannot clone EMA larger than what we have in the buffer (%d < 2*%d)",
+				len(ema.history), window),
+		}
+	}
+	clone = NewEMA(window)
+	for _, histVal := range ema.history {
+		clone.AddValue(histVal.abs)
+	}
+	return clone, nil
+}
+
 func (ema *EMA) AddValue(value decimal.Decimal) {
 	// Make a float
 	fValue, _ := value.Float64()
