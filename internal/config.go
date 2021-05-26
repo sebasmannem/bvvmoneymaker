@@ -79,7 +79,7 @@ func NewConfig() (config BvvConfig, err error) {
 		return config, err
 	}
 
-	yamlConfig, err := ioutil.ReadFile(configFile)
+	yamlConfig, err := ioutil.ReadFile(filepath.Clean(configFile))
 	if err != nil {
 		return config, err
 	}
