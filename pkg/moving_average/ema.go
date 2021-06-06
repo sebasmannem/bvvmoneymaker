@@ -134,3 +134,27 @@ func (ema EMA) GetBandwidth() (bw MABandwidth, err error) {
 	bw.Cur, err = ema.Get()
 	return bw, err
 }
+
+func (ema *EMA) Compare(other *EMA) (factor float64, trend Trend, err error) {
+	myVal, err := ema.value.Get()
+	if err != nil {
+		return
+	}
+	otherVal, err := other.value.Get()
+	if err != nil {
+		return
+	}
+
+	if ema.window <= other.window && myVal >= otherVal || ema.window >= other.window && myVal <= otherVal {
+		trend = BullTrend
+	} else {
+		trend = BearTrend
+	}
+
+	if ema.window < other.window {
+		 factor = myVal - otherVal
+	} else {
+		factor = otherVal - myVal
+	}
+	return
+}

@@ -19,28 +19,38 @@ type MABucket struct {
 	volume    decimal.Decimal
 }
 
-type MAHandler struct {
-	market      *BvvMarket
-	interval    string
-	limit       int64
-	buckets     MABuckets
-	ema         *moving_average.EMA
+type RibbonHandler struct {
+	market    *BvvMarket
+	timeframe string
+	buckets   MABuckets
+	emas      []*moving_average.EMA
+	limit     uint
 }
 
-func NewMAHandler(market *BvvMarket, config bvvMAConfig) (mah *MAHandler, err error) {
-	config.SetDefaults()
-	ema := moving_average.NewEMA(config.Window)
-	mah = &MAHandler{
-		market: market,
-		interval: config.Interval,
-		limit: config.Limit,
-		ema: ema,
+func NewRibbonHandler(market *BvvMarket, config bvvRibbonConfig) (rh *RibbonHandler, err error) {
+	if ! config.Enabled() {
+		return rh, fmt.Errorf("ribbon config is disabled")
 	}
-	err = mah.initFromCandles()
+	config.Initialize()
+	rh = &RibbonHandler{
+		market: market,
+		timeframe: config.Timeframe,
+	}
+
+	var maxWindow uint
+	for _, window := range config.Windows {
+		rh.emas = append(rh.emas, moving_average.NewEMA(window))
+		if maxWindow < window {
+			maxWindow = window
+		}
+	}
+	rh.limit = maxWindow + config.PreWarm
+
+	err = rh.initFromCandles()
 	if err != nil {
 		return nil, err
 	}
-	return mah, nil
+	return rh, nil
 }
 
 func newMABucket(candle bitvavo.Candle) (bucket MABucket, err error) {
@@ -85,24 +95,27 @@ func (c candlesByTS) Len() int           { return len(c) }
 func (c candlesByTS) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
 func (c candlesByTS) Less(i, j int) bool { return c[i].Timestamp < c[j].Timestamp }
 
-func (mah *MAHandler) initFromCandles() (err error) {
-	candleOptions := bvvOptions{"limit": fmt.Sprintf("%d", mah.limit)}
+func (rh *RibbonHandler) initFromCandles() (err error) {
+	candleOptions := bvvOptions{"limit": fmt.Sprintf("%d", rh.limit)}
 	//candleOptions := bvvOptions{}
-	candlesResponse, candlesErr := mah.market.handler.connection.Candles(mah.market.Name(), mah.interval, candleOptions)
+	candlesResponse, candlesErr := rh.market.handler.connection.Candles(rh.market.Name(), rh.timeframe, candleOptions)
 	if candlesErr != nil {
 		return candlesErr
 	} else {
 		// Sort the candles by Timestamp before processing
 		sort.Sort(candlesByTS(candlesResponse))
 		for _, candle := range candlesResponse {
-			//mah.market.handler.PrettyPrint(candle)
+			//rh.market.handler.PrettyPrint(candle)
 			bucket, err := newMABucket(candle)
 			if err != nil {
 				return err
 			}
 			// Storing this last value for .GetOverrated() too
-			mah.buckets = append(mah.buckets, bucket)
-			mah.ema.AddValue(bucket.Average())
+			rh.buckets = append(rh.buckets, bucket)
+			avg := bucket.Average()
+			for _, ema := range rh.emas{
+				ema.AddValue(avg)
+			}
 		}
 	}
 	return nil

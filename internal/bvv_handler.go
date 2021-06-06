@@ -52,7 +52,7 @@ func (bh BvvHandler) Evaluate() {
 			// This probably is a reverse market. Skipping.
 			continue
 		}
-		if market.mah != nil {
+		if market.rh != nil {
 			expectedRate, err := market.GetExpectedRate()
 			if err != nil {
 				log.Fatalf("Error occurred on getting GetExpectedRate for market %s: %e", market.Name(), err)
@@ -69,12 +69,17 @@ func (bh BvvHandler) Evaluate() {
 			}
 			fmt.Printf("%s is %s%% %srated (expected %s vs actual %s)\n", market.Name(), percent.Round(2),
 				direction, expectedRate.Round(2), market.Price)
-			bw, err := market.GetBandWidth()
+			bw, err := market.GetBandWidth(0)
 			if err != nil {
 				log.Fatalf("Error occurred on getting GetBandWidth for market %s: %e", market.Name(), err)
 			}
 			fmt.Printf("%s bandwidth is between -%s%% and +%s%%.\n", market.Name(), bw.GetMinPercent().Round(2),
 				bw.GetMaxPercent().Round(2))
+			trend, err := market.Trend()
+			if err != nil {
+				log.Fatalf("Error occurred on getting Trend for market %s: %e", market.Name(), err)
+			}
+			fmt.Printf("%s trend is %s.\n", market.Name(), trend.Str())
 		}
 		if market.Min.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
 			err := bh.Sell(*market, market.Total().Sub(market.Min))

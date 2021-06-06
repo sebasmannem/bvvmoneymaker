@@ -6,6 +6,27 @@ type MAError struct {
 	error
 }
 
+type Trend int
+
+const (
+	BullTrend Trend = iota
+	BearTrend
+	IndecisiveTrend
+	UndefinedTrend
+)
+
+func (trend Trend) Str() (str string) {
+	if trend == BullTrend {
+		return "a bull trend"
+	} else if trend == BearTrend {
+		return "a bear trend"
+	} else if trend == IndecisiveTrend {
+		return "a indecisive trend"
+	} else {
+		return "an undefined trend"
+	}
+}
+
 type MABandwidth struct {
 	Min decimal.Decimal
 	Cur decimal.Decimal

@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"gopkg.in/yaml.v2"
 )
@@ -29,36 +30,31 @@ type bvvApiConfig struct {
 	Debug  bool   `yaml:"debug"`
 }
 
-type bvvMAConfig struct {
-	Interval string `yaml:"interval"`
-	Window   uint   `yaml:"window"`
-	Limit    int64  `yaml:"limit"`
+type bvvRibbonConfig struct {
+	Timeframe string `yaml:"timeframe"`
+	Windows   []uint `yaml:"windows"`
+	PreWarm   uint   `yaml:"preWarm"`
 }
 
-func (mac *bvvMAConfig) Enabled() bool {
-	if mac.Window > 0 || mac.Limit > 0 || mac.Interval != "" {
+func (rc *bvvRibbonConfig) Enabled() bool {
+	if len(rc.Windows) > 0 {
 		return true
 	}
 	return false
 }
 
-func (mac *bvvMAConfig) SetDefaults() {
-	if mac.Interval == "" {
-		mac.Interval = "1d"
+func (rc *bvvRibbonConfig) Initialize() {
+	if rc.Timeframe == "" {
+		rc.Timeframe = "1d"
 	}
-	if mac.Window == 0 {
-		mac.Window = 42
-	}
-	if mac.Limit == 0 {
-		mac.Limit = 2 * int64(mac.Window)
-	}
+	sort.Slice(rc.Windows, func(i, j int) bool { return rc.Windows[i] < rc.Windows[j] })
 }
 
 type bvvMarketConfig struct {
 	// When more then this level of currency is available, we can sell
-	MinLevel string      `yaml:"min"`
-	MaxLevel string      `yaml:"max"`
-	MAConfig bvvMAConfig `yaml:"ema"`
+	MinLevel string              `yaml:"min"`
+	MaxLevel string              `yaml:"max"`
+	RibbonConfig bvvRibbonConfig `yaml:"ribbon"`
 }
 
 type BvvConfig struct {

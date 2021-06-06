@@ -6,6 +6,8 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type BvvMarketTrend int
+
 type BvvMarkets map[string]*BvvMarket
 
 type MarketNotInConfigError struct {
@@ -29,7 +31,7 @@ type BvvMarket struct {
 	Price      decimal.Decimal `yaml:"price"`
 	Min        decimal.Decimal `yaml:"min"`
 	Max        decimal.Decimal `yaml:"max"`
-	mah        *MAHandler
+	rh         *RibbonHandler
 }
 
 func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, inOrder string) (market BvvMarket,
@@ -67,8 +69,8 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 		Available: decAvailable,
 		InOrder:   decInOrder,
 	}
-	if config.MAConfig.Enabled() {
-		market.mah, err = NewMAHandler(&market, config.MAConfig)
+	if config.RibbonConfig.Enabled() {
+		market.rh, err = NewRibbonHandler(&market, config.RibbonConfig)
 		if err != nil {
 			return BvvMarket{}, nil
 		}
@@ -120,17 +122,51 @@ func (bm BvvMarket) exchange(amount decimal.Decimal) (balance decimal.Decimal) {
 }
 
 func (bm BvvMarket) GetExpectedRate() (total decimal.Decimal, err error) {
-	if bm.mah == nil {
-		return decimal.Zero, fmt.Errorf("cannot get expected rate without MAHandler")
+	if bm.rh == nil || bm.rh.emas == nil {
+		return decimal.Zero, fmt.Errorf("cannot get expected rate without RibbonHandler")
 	}
-	return bm.mah.ema.GetWithOffset()
+	sum := decimal.Zero
+	for _, ema := range bm.rh.emas {
+		emaval, err := ema.GetWithOffset()
+		if err != nil {
+			return total, err
+		}
+		sum = sum.Add(emaval)
+	}
+	return sum.Div(decimal.NewFromInt(int64(len(bm.rh.emas)))), nil
 }
 
-func (bm BvvMarket) GetBandWidth() (bw moving_average.MABandwidth, err error) {
-	if bm.mah == nil {
-		return moving_average.MABandwidth{}, fmt.Errorf("cannot get bandwidth without MAHandler")
+func (bm BvvMarket) GetBandWidth(ema int) (bw moving_average.MABandwidth, err error) {
+	if bm.rh == nil  {
+		return moving_average.MABandwidth{}, fmt.Errorf("cannot get bandwidth without RibbonHandler")
+	} else if len(bm.rh.emas) <= ema {
+		return moving_average.MABandwidth{}, fmt.Errorf("Ribbon %d not defined", ema)
 	}
-	return bm.mah.ema.GetBandwidth()
+	return bm.rh.emas[ema].GetBandwidth()
+}
+
+func (bm BvvMarket) Trend() (trend moving_average.Trend, err error) {
+	if bm.rh == nil || len(bm.rh.emas) < 2 {
+		return moving_average.UndefinedTrend, fmt.Errorf("to detect the trend we need a Ribbon with at least 2 ema's")
+	}
+	for i, ema := range bm.rh.emas {
+		if i == 0 {
+			// First cannot be compared with previous
+			continue
+		}
+		_, emaTrend, err := ema.Compare(bm.rh.emas[i-1])
+		if err != nil {
+			return moving_average.UndefinedTrend, err
+		}
+		if i == 1 {
+			// Second will be compared with first, and used as base value
+			trend = emaTrend
+		}
+		if i>1 && emaTrend != trend {
+			return moving_average.IndecisiveTrend, nil
+		}
+	}
+	return
 }
 
 func (bm BvvMarket) Total() (total decimal.Decimal) {
