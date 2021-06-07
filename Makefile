@@ -6,3 +6,5 @@ run:
 	./bvv_moneymaker
 test:
 	go test ./...
+lint:
+	golangci-lint run

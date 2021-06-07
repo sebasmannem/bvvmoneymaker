@@ -37,10 +37,7 @@ type bvvRibbonConfig struct {
 }
 
 func (rc *bvvRibbonConfig) Enabled() bool {
-	if len(rc.Windows) > 0 {
-		return true
-	}
-	return false
+	return len(rc.Windows) > 0
 }
 
 func (rc *bvvRibbonConfig) Initialize() {
