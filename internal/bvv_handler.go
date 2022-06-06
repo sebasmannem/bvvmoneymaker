@@ -14,11 +14,11 @@ import (
 type bvvOptions map[string]string
 
 type BvvHandler struct {
-	connection     *bitvavo.Bitvavo
-	config         BvvConfig
-	markets        BvvMarkets
+	connection *bitvavo.Bitvavo
+	config     BvvConfig
+	markets    BvvMarkets
 	// internal temp list of current
-	prices         map[string]decimal.Decimal
+	prices map[string]decimal.Decimal
 }
 
 func NewBvvHandler() (bh *BvvHandler, err error) {
@@ -76,7 +76,12 @@ func (bh BvvHandler) Evaluate() {
 			fmt.Printf("%s bandwidth is between -%s%% and +%s%%.\n", market.Name(), bw.GetMinPercent().Round(2),
 				bw.GetMaxPercent().Round(2))
 		}
-		if market.Min.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
+		if market.Min.GreaterThan(decimal.Zero) && market.Min.GreaterThan(market.Total()) {
+			err := bh.Buy(*market, market.Total().Sub(market.Min))
+			if err != nil {
+				log.Fatalf("Error occurred while buying %s: %e", market.Name(), err)
+			}
+		} else if market.Max.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
 			err := bh.Sell(*market, market.Total().Sub(market.Min))
 			if err != nil {
 				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
@@ -134,7 +139,7 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 				continue
 			}
 			_, err := NewBvvMarket(bh, b.Symbol, bh.config.Fiat, b.Available, b.InOrder)
-			if mErr, ok  := err.(MarketNotInConfigError); ok {
+			if mErr, ok := err.(MarketNotInConfigError); ok {
 				if bh.config.Debug {
 					fmt.Printf("%s.\n", mErr.Error())
 				}
@@ -155,10 +160,34 @@ func (bh BvvHandler) Sell(market BvvMarket, amount decimal.Decimal) (err error) 
 		return nil
 	}
 	fmt.Printf("I am selling %s: %s\n", market.Name(), amount)
+	log.Fatal("Not actually selling yet!!!")
 	bh.PrettyPrint(market.inverse)
 	placeOrderResponse, err := bh.connection.PlaceOrder(
 		market.Name(),
 		"sell",
+		"market",
+		bvvOptions{"amount": amount.String()})
+	if err != nil {
+		return err
+	} else {
+		bh.PrettyPrint(placeOrderResponse)
+	}
+	return nil
+}
+
+func (bh BvvHandler) Buy(market BvvMarket, amount decimal.Decimal) (err error) {
+	if !bh.config.ActiveMode {
+		fmt.Printf("We should buy %s: %s\n", market.Name(), amount)
+		bh.PrettyPrint(market.inverse)
+		return nil
+	}
+	fmt.Printf("I am buying %s: %s\n", market.Name(), amount)
+	log.Fatal("Not actually buying yet!!!")
+	bh.PrettyPrint(market.inverse)
+
+	placeOrderResponse, err := bh.connection.PlaceOrder(
+		market.Name(),
+		"buy",
 		"market",
 		bvvOptions{"amount": amount.String()})
 	if err != nil {
