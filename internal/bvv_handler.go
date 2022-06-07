@@ -22,26 +22,28 @@ type BvvHandler struct {
 }
 
 func NewBvvHandler() (bh *BvvHandler, err error) {
-
-	config, err := NewConfig()
-
-	if err != nil {
+	log.Printf("BVV MoneyMaker version: %s", appVersion)
+	var config BvvConfig
+	if config, err = NewConfig(); err != nil {
 		return bh, err
+	} else {
+		connection := bitvavo.Bitvavo{
+			ApiKey:       config.Api.Key,
+			ApiSecret:    config.Api.Secret,
+			RestUrl:      "https://api.bitvavo.com/v2",
+			WsUrl:        "wss://ws.bitvavo.com/v2/",
+			AccessWindow: 10000,
+			Debugging:    config.Api.Debug,
+		}
+		handler := BvvHandler{
+			config:     config,
+			connection: &connection,
+		}
+		if err = handler.GetAssets(); err != nil {
+			return bh, err
+		}
+		return &handler, nil
 	}
-	connection := bitvavo.Bitvavo{
-		ApiKey:       config.Api.Key,
-		ApiSecret:    config.Api.Secret,
-		RestUrl:      "https://api.bitvavo.com/v2",
-		WsUrl:        "wss://ws.bitvavo.com/v2/",
-		AccessWindow: 10000,
-		Debugging:    config.Api.Debug,
-	}
-	handler := BvvHandler{
-		config:     config,
-		connection: &connection,
-	}
-	handler.GetAssets()
-	return &handler, nil
 }
 
 func (bh BvvHandler) Evaluate() {
