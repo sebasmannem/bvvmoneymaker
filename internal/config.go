@@ -56,9 +56,10 @@ func (mac *bvvMAConfig) SetDefaults() {
 
 type bvvMarketConfig struct {
 	// When more then this level of currency is available, we can sell
-	MinLevel string      `yaml:"min"`
-	MaxLevel string      `yaml:"max"`
-	MAConfig bvvMAConfig `yaml:"ema"`
+	MinLevel   string      `yaml:"min"`
+	MaxLevel   string      `yaml:"max"`
+	RateWindow int         `yaml:"rateWindow"`
+	MAConfig   bvvMAConfig `yaml:"ema"`
 }
 
 type BvvConfig struct {
