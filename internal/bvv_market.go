@@ -4,9 +4,21 @@ import (
 	"fmt"
 	"github.com/sebasmannem/bvvmoneymaker/pkg/moving_average"
 	"github.com/shopspring/decimal"
+	"sort"
 )
 
 type BvvMarkets map[string]*BvvMarket
+
+func (bms BvvMarkets) Sorted() []*BvvMarket {
+	var sortedMarkets []*BvvMarket
+	for _, bm := range bms {
+		sortedMarkets = append(sortedMarkets, bm)
+	}
+	sort.SliceStable(sortedMarkets, func(i, j int) bool {
+		return sortedMarkets[i].Name() < sortedMarkets[j].Name()
+	})
+	return sortedMarkets
+}
 
 type MarketNotInConfigError struct {
 	error
@@ -19,34 +31,37 @@ func newMarketNotInConfigError(marketName string) MarketNotInConfigError {
 }
 
 type BvvMarket struct {
-	From       string `yaml:"symbol"`
-	To         string `yaml:"fiat"`
-	handler    *BvvHandler
-	config     bvvMarketConfig
-	inverse    *BvvMarket
-	Available  decimal.Decimal `yaml:"available"`
-	InOrder    decimal.Decimal `yaml:"inOrder"`
-	Price      decimal.Decimal `yaml:"price"`
-	Min        decimal.Decimal `yaml:"min"`
-	Max        decimal.Decimal `yaml:"max"`
-	mah        *MAHandler
+	From      string `yaml:"symbol"`
+	To        string `yaml:"fiat"`
+	handler   *BvvHandler
+	config    bvvMarketConfig
+	inverse   *BvvMarket
+	Available decimal.Decimal `yaml:"available"`
+	InOrder   decimal.Decimal `yaml:"inOrder"`
+	Price     decimal.Decimal `yaml:"price"`
+	Min       decimal.Decimal `yaml:"min"`
+	Max       decimal.Decimal `yaml:"max"`
+	mah       *MAHandler
+	rate      Rate
 }
 
 func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, inOrder string) (market BvvMarket,
 	err error) {
+	var (
+		decMin decimal.Decimal
+		decMax decimal.Decimal
+	)
 	config, found := bh.config.Markets[symbol]
 	if !found {
 		return market, newMarketNotInConfigError(symbol)
 	}
 
-	decMin, err := decimal.NewFromString(config.MinLevel)
-	if err != nil {
+	if decMin, err = decimal.NewFromString(config.MinLevel); err != nil {
 		decMin = decimal.Zero
 	} else if decMin.LessThan(decimal.Zero) {
 		decMin = decimal.Zero
 	}
-	decMax, err := decimal.NewFromString(config.MaxLevel)
-	if err != nil {
+	if decMax, err = decimal.NewFromString(config.MaxLevel); err != nil {
 		decMax = decimal.Zero
 	} else if decMax.LessThan(decMin) {
 		decMax = decimal.Zero
@@ -59,6 +74,7 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 	if err != nil {
 		return market, fmt.Errorf("could not convert inOrder to Decimal %s: %e", inOrder, err)
 	}
+
 	market = BvvMarket{
 		From:      symbol,
 		To:        fiatSymbol,
@@ -67,6 +83,10 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 		Available: decAvailable,
 		InOrder:   decInOrder,
 	}
+	if err = market.SetAvgRate(); err != nil {
+		return BvvMarket{}, err
+	}
+
 	if config.MAConfig.Enabled() {
 		market.mah, err = NewMAHandler(&market, config.MAConfig)
 		if err != nil {
@@ -99,6 +119,28 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 	bh.markets[market.Name()] = &market
 	bh.markets[market.inverse.Name()] = market.inverse
 	return market, nil
+}
+
+func (bm *BvvMarket) SetAvgRate() error {
+	publicTradesResponse, publicTradesErr := bm.handler.connection.Trades(bm.Name(), bvvOptions{})
+	if publicTradesErr != nil {
+		return publicTradesErr
+	} else {
+		// Let's sort old to new
+		sort.SliceStable(publicTradesResponse, func(i, j int) bool {
+			return publicTradesResponse[i].Timestamp < publicTradesResponse[j].Timestamp
+		})
+		for _, trade := range publicTradesResponse {
+			if err := bm.rate.ExchangeFromTrade(trade); err != nil {
+				return fmt.Errorf("error exchanging trade: %e", err)
+			}
+		}
+	}
+	return nil
+}
+
+func (bm BvvMarket) MinimumAmount() decimal.Decimal {
+	return decimal.NewFromInt32(5).Div(bm.Price)
 }
 
 func (bm BvvMarket) reverse() (reverse *BvvMarket, err error) {
