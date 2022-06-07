@@ -2,9 +2,8 @@ package internal
 
 import (
 	"fmt"
-	"log"
-
 	"github.com/bitvavo/go-bitvavo-api"
+	"log"
 
 	"github.com/shopspring/decimal"
 )
@@ -19,6 +18,7 @@ type BvvHandler struct {
 	markets    BvvMarkets
 	// internal temp list of current
 	prices map[string]decimal.Decimal
+	assets map[string]bitvavo.Assets
 }
 
 func NewBvvHandler() (bh *BvvHandler, err error) {
@@ -36,10 +36,12 @@ func NewBvvHandler() (bh *BvvHandler, err error) {
 		AccessWindow: 10000,
 		Debugging:    config.Api.Debug,
 	}
-	return &BvvHandler{
+	handler := BvvHandler{
 		config:     config,
 		connection: &connection,
-	}, nil
+	}
+	handler.GetAssets()
+	return &handler, nil
 }
 
 func (bh BvvHandler) Evaluate() {
@@ -47,7 +49,7 @@ func (bh BvvHandler) Evaluate() {
 	if err != nil {
 		log.Fatalf("Error occurred on getting markets: %e", err)
 	}
-	for _, market := range markets {
+	for _, market := range markets.Sorted() {
 		if market.To != bh.config.Fiat {
 			// This probably is a reverse market. Skipping.
 			continue
@@ -77,12 +79,17 @@ func (bh BvvHandler) Evaluate() {
 				bw.GetMaxPercent().Round(2))
 		}
 		if market.Min.GreaterThan(decimal.Zero) && market.Min.GreaterThan(market.Total()) {
-			err := bh.Buy(*market, market.Total().Sub(market.Min))
+			err := bh.Buy(*market, market.Min.Sub(market.Total()))
 			if err != nil {
 				log.Fatalf("Error occurred while buying %s: %e", market.Name(), err)
 			}
+		} else if avgRate, err := market.rate.Average(); err != nil {
+			log.Printf("Could not determine average rate from market %s", market.Name())
+		} else if avgRate.GreaterThan(market.Price) {
+			log.Printf("market %s is %s%% under water (%s>%s)", market.Name(),
+				decimalPercent(avgRate, market.Price), avgRate, market.Price)
 		} else if market.Max.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
-			err := bh.Sell(*market, market.Total().Sub(market.Min))
+			err := bh.Sell(*market, market.Total().Sub(market.Max).Div(market.Price))
 			if err != nil {
 				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
 			}
@@ -154,19 +161,28 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 }
 
 func (bh BvvHandler) Sell(market BvvMarket, amount decimal.Decimal) (err error) {
+	if market.MinimumAmount().GreaterThan(amount) {
+		amount = market.MinimumAmount()
+	}
 	if !bh.config.ActiveMode {
 		fmt.Printf("We should sell %s: %s\n", market.Name(), amount)
 		bh.PrettyPrint(market.inverse)
 		return nil
 	}
 	fmt.Printf("I am selling %s: %s\n", market.Name(), amount)
-	log.Fatal("Not actually selling yet!!!")
+	var decimals int32
+	if asset, exists := bh.assets[market.From]; !exists {
+		return fmt.Errorf("unknown asset %s", market.From)
+	} else {
+		decimals = int32(asset.Decimals)
+	}
+
 	bh.PrettyPrint(market.inverse)
 	placeOrderResponse, err := bh.connection.PlaceOrder(
 		market.Name(),
 		"sell",
 		"market",
-		bvvOptions{"amount": amount.String()})
+		bvvOptions{"amount": amount.Round(decimals).String()})
 	if err != nil {
 		return err
 	} else {
@@ -176,20 +192,28 @@ func (bh BvvHandler) Sell(market BvvMarket, amount decimal.Decimal) (err error) 
 }
 
 func (bh BvvHandler) Buy(market BvvMarket, amount decimal.Decimal) (err error) {
+	if market.MinimumAmount().GreaterThan(amount) {
+		amount = market.MinimumAmount()
+	}
 	if !bh.config.ActiveMode {
 		fmt.Printf("We should buy %s: %s\n", market.Name(), amount)
 		bh.PrettyPrint(market.inverse)
 		return nil
 	}
 	fmt.Printf("I am buying %s: %s\n", market.Name(), amount)
-	log.Fatal("Not actually buying yet!!!")
+	var decimals int32
+	if asset, exists := bh.assets[market.From]; !exists {
+		return fmt.Errorf("unknown asset %s", market.From)
+	} else {
+		decimals = int32(asset.Decimals)
+	}
+	//log.Fatal("Not actually buying yet!!!")
 	bh.PrettyPrint(market.inverse)
-
 	placeOrderResponse, err := bh.connection.PlaceOrder(
 		market.Name(),
 		"buy",
 		"market",
-		bvvOptions{"amount": amount.String()})
+		bvvOptions{"amount": amount.Round(decimals).String()})
 	if err != nil {
 		return err
 	} else {
@@ -213,13 +237,18 @@ func (bh BvvHandler) Buy(market BvvMarket, amount decimal.Decimal) (err error) {
 //	return nil
 //}
 
-func (bh BvvHandler) GetAssets() (err error) {
+func (bh *BvvHandler) GetAssets() (err error) {
+	if len(bh.assets) > 0 {
+		return nil
+	}
+	bh.assets = make(map[string]bitvavo.Assets)
 	assetsResponse, assetsErr := bh.connection.Assets(bvvOptions{})
 	if assetsErr != nil {
 		fmt.Println(assetsErr)
 	} else {
-		for _, value := range assetsResponse {
-			bh.PrettyPrint(value)
+		for _, asset := range assetsResponse {
+			bh.assets[asset.Symbol] = asset
+			//bh.PrettyPrint(asset)
 		}
 	}
 	return nil
