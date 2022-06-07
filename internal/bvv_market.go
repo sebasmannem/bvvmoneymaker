@@ -122,7 +122,11 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 }
 
 func (bm *BvvMarket) SetAvgRate() error {
-	publicTradesResponse, publicTradesErr := bm.handler.connection.Trades(bm.Name(), bvvOptions{})
+	var options = make(bvvOptions)
+	if bm.config.RateWindow > 0 {
+		options["limit"] = fmt.Sprintf("%d", bm.config.RateWindow)
+	}
+	publicTradesResponse, publicTradesErr := bm.handler.connection.Trades(bm.Name(), options)
 	if publicTradesErr != nil {
 		return publicTradesErr
 	} else {
