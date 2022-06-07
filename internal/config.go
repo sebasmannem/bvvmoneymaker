@@ -80,6 +80,8 @@ func NewConfig() (config BvvConfig, err error) {
 		return config, err
 	}
 
+	// This only parsed as yaml, nothing else
+	// #nosec
 	yamlConfig, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return config, err
