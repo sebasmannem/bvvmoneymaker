@@ -1,0 +1,15 @@
+# This timer unit is for scheduling BVV MoneyMaker
+# By Sebastiaan Mannem
+# Licensed under GPL V2
+#
+
+[Unit]
+Description=Run BVV MoneyMaker to automatically buy and sell on BitVaVo
+Requires=bvvmoneymaker.service
+
+[Timer]
+Unit=bvvmoneymaker.service
+OnCalendar=*-*-* *:*:00
+
+[Install]
+WantedBy=timers.target

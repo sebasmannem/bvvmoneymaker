@@ -1,0 +1,16 @@
+# This service unit is for running BVV Money Maker to automatically buy and sell on BitVavo
+# By Sebastiaan Mannem
+# Licensed under GPL V2
+#
+
+[Unit]
+Description=Run BVV MoneyMaker
+Wants=bvvmoneymaker.timer
+
+[Service]
+Type=oneshot
+Environment=BVVCONFIG=/etc/bvvmoneymaker/bvvconfig.yaml
+ExecStart=/usr/local/bin/bvvmoneymaker
+
+[Install]
+WantedBy=multi-user.target
