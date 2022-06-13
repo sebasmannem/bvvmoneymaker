@@ -80,20 +80,20 @@ func (bh BvvHandler) Evaluate() {
 			fmt.Printf("%s bandwidth is between -%s%% and +%s%%.\n", market.Name(), bw.GetMinPercent().Round(2),
 				bw.GetMaxPercent().Round(2))
 		}
-		if market.Min.GreaterThan(decimal.Zero) && market.Min.GreaterThan(market.Total()) {
-			err := bh.Buy(*market, market.Min.Sub(market.Total()))
+		if market.Max.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
+			err := bh.Sell(*market, market.Total().Sub(market.Max))
 			if err != nil {
-				log.Fatalf("Error occurred while buying %s: %e", market.Name(), err)
+				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
 			}
 		} else if avgRate, err := market.rate.Average(); err != nil {
 			log.Printf("Could not determine average rate from market %s", market.Name())
 		} else if avgRate.GreaterThan(market.Price) {
 			log.Printf("market %s is %s%% under water (%s>%s)", market.Name(),
 				decimalPercent(avgRate, market.Price), avgRate, market.Price)
-		} else if market.Max.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
-			err := bh.Sell(*market, market.Total().Sub(market.Max).Div(market.Price))
+		} else if market.Min.GreaterThan(decimal.Zero) && market.Min.GreaterThan(market.Total()) {
+			err := bh.Buy(*market, market.Min.Sub(market.Total()))
 			if err != nil {
-				log.Fatalf("Error occurred while selling %s: %e", market.Name(), err)
+				log.Fatalf("Error occurred while buying %s: %e", market.Name(), err)
 			}
 		}
 	}
