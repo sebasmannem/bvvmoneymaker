@@ -71,15 +71,16 @@ func (bh BvvHandler) Evaluate() {
 				direction = "over"
 				percent = hundred.Sub(expectedRate.Div(market.Price).Mul(hundred))
 			}
-			fmt.Printf("%s is %s%% %srated (expected %s vs actual %s)\n", market.Name(), percent.Round(2),
+			log.Printf("%s is %s%% %srated (expected %s vs actual %s)\n", market.Name(), percent.Round(2),
 				direction, expectedRate.Round(2), market.Price)
 			bw, err := market.GetBandWidth()
 			if err != nil {
 				log.Fatalf("Error occurred on getting GetBandWidth for market %s: %e", market.Name(), err)
 			}
-			fmt.Printf("%s bandwidth is between -%s%% and +%s%%.\n", market.Name(), bw.GetMinPercent().Round(2),
+			log.Printf("%s bandwidth is between -%s%% and +%s%%.\n", market.Name(), bw.GetMinPercent().Round(2),
 				bw.GetMaxPercent().Round(2))
 		}
+		log.Printf("%s: min: %s, max: %s, total: %s", market.Name(), market.Min.String(), market.Max.String(), market.Total().String())
 		if market.Max.GreaterThan(decimal.Zero) && market.Max.LessThan(market.Total()) {
 			err := bh.Sell(*market, market.Total().Sub(market.Max))
 			if err != nil {
@@ -115,7 +116,7 @@ func (bh *BvvHandler) getPrices(reset bool) (prices map[string]decimal.Decimal, 
 	prices = make(map[string]decimal.Decimal)
 	tickerPriceResponse, tickerPriceErr := bh.connection.TickerPrice(bvvOptions{})
 	if tickerPriceErr != nil {
-		fmt.Println(tickerPriceErr)
+		return bh.prices, err
 	} else {
 		for _, price := range tickerPriceResponse {
 			prices[price.Market], err = decimal.NewFromString(price.Price)
@@ -150,7 +151,7 @@ func (bh *BvvHandler) GetMarkets(reset bool) (markets BvvMarkets, err error) {
 			_, err := NewBvvMarket(bh, b.Symbol, bh.config.Fiat, b.Available, b.InOrder)
 			if mErr, ok := err.(MarketNotInConfigError); ok {
 				if bh.config.Debug {
-					fmt.Printf("%s.\n", mErr.Error())
+					log.Printf("%s.\n", mErr.Error())
 				}
 				continue
 			}
@@ -167,11 +168,11 @@ func (bh BvvHandler) Sell(market BvvMarket, amount decimal.Decimal) (err error) 
 		amount = market.MinimumAmount()
 	}
 	if !bh.config.ActiveMode {
-		fmt.Printf("We should sell %s: %s\n", market.Name(), amount)
+		log.Printf("We should sell %s: %s\n", market.Name(), amount)
 		bh.PrettyPrint(market.inverse)
 		return nil
 	}
-	fmt.Printf("I am selling %s: %s\n", market.Name(), amount)
+	log.Printf("I am selling %s: %s\n", market.Name(), amount)
 	var decimals int32
 	if asset, exists := bh.assets[market.From]; !exists {
 		return fmt.Errorf("unknown asset %s", market.From)
@@ -198,11 +199,11 @@ func (bh BvvHandler) Buy(market BvvMarket, amount decimal.Decimal) (err error) {
 		amount = market.MinimumAmount()
 	}
 	if !bh.config.ActiveMode {
-		fmt.Printf("We should buy %s: %s\n", market.Name(), amount)
+		log.Printf("We should buy %s: %s\n", market.Name(), amount)
 		bh.PrettyPrint(market.inverse)
 		return nil
 	}
-	fmt.Printf("I am buying %s: %s\n", market.Name(), amount)
+	log.Printf("I am buying %s: %s\n", market.Name(), amount)
 	var decimals int32
 	if asset, exists := bh.assets[market.From]; !exists {
 		return fmt.Errorf("unknown asset %s", market.From)
@@ -227,7 +228,7 @@ func (bh BvvHandler) Buy(market BvvMarket, amount decimal.Decimal) (err error) {
 //func (bh BvvHandler) GetMarkets() (err error) {
 //	marketsResponse, marketsErr := bh.connection.Markets(bvvOptions{})
 //	if marketsErr != nil {
-//		fmt.Println(marketsErr)
+//		log.Println(marketsErr)
 //	} else {
 //		for _, value := range marketsResponse {
 //			err = bh.PrettyPrint(value)
@@ -246,7 +247,7 @@ func (bh *BvvHandler) GetAssets() (err error) {
 	bh.assets = make(map[string]bitvavo.Assets)
 	assetsResponse, assetsErr := bh.connection.Assets(bvvOptions{})
 	if assetsErr != nil {
-		fmt.Println(assetsErr)
+		return assetsErr
 	} else {
 		for _, asset := range assetsResponse {
 			bh.assets[asset.Symbol] = asset
@@ -265,17 +266,17 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 	}
 }
 
-//fmt.Println("Book")
+//log.Println("Book")
 //bookResponse, bookErr := bitvavo.Book("BTC-EUR", bvvOptions{})
 //if bookErr != nil {
-// fmt.Println(bookErr)
+// log.Println(bookErr)
 //} else {
 // PrettyPrint(bookResponse)
 //}
 
 // publicTradesResponse, publicTradesErr := bitvavo.PublicTrades("BTC-EUR", bvvOptions{})
 // if publicTradesErr != nil {
-//   fmt.Println(publicTradesErr)
+//   log.Println(publicTradesErr)
 // } else {
 //   for _, trade := range publicTradesResponse {
 //     PrettyPrint(trade)
@@ -284,7 +285,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // candlesResponse, candlesErr := bitvavo.Candles("BTC-EUR", "1h", bvvOptions{})
 // if candlesErr != nil {
-//   fmt.Println(candlesErr)
+//   log.Println(candlesErr)
 // } else {
 //   for _, candle := range candlesResponse {
 //     PrettyPrint(candle)
@@ -293,7 +294,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // tickerPriceResponse, tickerPriceErr := bitvavo.TickerPrice(bvvOptions{})
 // if tickerPriceErr != nil {
-//   fmt.Println(tickerPriceErr)
+//   log.Println(tickerPriceErr)
 // } else {
 //   for _, price := range tickerPriceResponse {
 //     PrettyPrint(price)
@@ -302,7 +303,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // tickerBookResponse, tickerBookErr := bitvavo.TickerBook(bvvOptions{})
 // if tickerBookErr != nil {
-//   fmt.Println(tickerBookErr)
+//   log.Println(tickerBookErr)
 // } else {
 //   for _, book := range tickerBookResponse {
 //     PrettyPrint(book)
@@ -311,7 +312,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // ticker24hResponse, ticker24hErr := bitvavo.Ticker24h(bvvOptions{})
 // if ticker24hErr != nil {
-//   fmt.Println(ticker24hErr)
+//   log.Println(ticker24hErr)
 // } else {
 //   for _, ticker := range ticker24hResponse {
 //     PrettyPrint(ticker)
@@ -324,7 +325,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 //   "limit",
 //   bvvOptions{"amount": "0.3", "price": "2000"})
 // if placeOrderErr != nil {
-//   fmt.Println(placeOrderErr)
+//   log.Println(placeOrderErr)
 // } else {
 //   PrettyPrint(placeOrderResponse)
 // }
@@ -335,36 +336,36 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 //   "stopLoss",
 //   bvvOptions{"amount": "0.1", "triggerType": "price", "triggerReference": "lastTrade", "triggerAmount": "5000"})
 // if placeOrderErr != nil {
-//   fmt.Println(placeOrderErr)
+//   log.Println(placeOrderErr)
 // } else {
 //   PrettyPrint(placeOrderResponse)
 // }
 
 // updateOrderResponse, updateOrderErr := bitvavo.UpdateOrder("BTC-EUR", "68c72b7a-2cf5-4516-8915-703a5d38c77e", bvvOptions{"amount": "0.4"})
 // if updateOrderErr != nil {
-//   fmt.Println(updateOrderErr)
+//   log.Println(updateOrderErr)
 // } else {
 //   PrettyPrint(updateOrderResponse)
 // }
 
 // getOrderResponse, getOrderErr := bitvavo.GetOrder("BTC-EUR", "68c72b7a-2cf5-4516-8915-703a5d38c77e")
 // if getOrderErr != nil {
-//   fmt.Println(getOrderErr)
+//   log.Println(getOrderErr)
 // } else {
 //   PrettyPrint(getOrderResponse)
 // }
 
 // cancelOrderResponse, cancelOrderErr := bitvavo.CancelOrder("BTC-EUR", "68c72b7a-2cf5-4516-8915-703a5d38c77e")
 // if cancelOrderErr != nil {
-//   fmt.Println(cancelOrderErr)
+//   log.Println(cancelOrderErr)
 // } else {
 //   PrettyPrint(cancelOrderResponse)
 // }
 
-//fmt.Println("Orders")
+//log.Println("Orders")
 //getOrdersResponse, getOrdersErr := bitvavo.GetOrders("BTC-EUR", bvvOptions{})
 //if getOrdersErr != nil {
-//  fmt.Println(getOrdersErr)
+//  log.Println(getOrdersErr)
 //} else {
 //  for _, order := range getOrdersResponse {
 //    PrettyPrint(order)
@@ -373,7 +374,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // cancelOrdersResponse, cancelOrdersErr := bitvavo.CancelOrders(bvvOptions{"market": "BTC-EUR"})
 // if cancelOrdersErr != nil {
-//   fmt.Println(cancelOrdersErr)
+//   log.Println(cancelOrdersErr)
 // } else {
 //   for _, order := range cancelOrdersResponse {
 //     PrettyPrint(order)
@@ -382,7 +383,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // ordersOpenResponse, ordersOpenErr := bitvavo.OrdersOpen(bvvOptions{"market": "BTC-EUR"})
 // if ordersOpenErr != nil {
-//   fmt.Println(ordersOpenErr)
+//   log.Println(ordersOpenErr)
 // } else {
 //   for _, order := range ordersOpenResponse {
 //     PrettyPrint(order)
@@ -391,7 +392,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // tradesResponse, tradesErr := bitvavo.Trades("BTC-EUR", bvvOptions{})
 // if tradesErr != nil {
-//   fmt.Println(tradesErr)
+//   log.Println(tradesErr)
 // } else {
 //   for _, trade := range tradesResponse {
 //     PrettyPrint(trade)
@@ -400,28 +401,28 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // accountResponse, accountErr := bitvavo.Account()
 // if accountErr != nil {
-//   fmt.Println(accountErr)
+//   log.Println(accountErr)
 // } else {
 //   PrettyPrint(accountResponse)
 // }
 
 // depositAssetsResponse, depositAssetsErr := bitvavo.DepositAssets("BTC")
 // if depositAssetsErr != nil {
-//   fmt.Println(depositAssetsErr)
+//   log.Println(depositAssetsErr)
 // } else {
 //   PrettyPrint(depositAssetsResponse)
 // }
 
 // withdrawAssetsResponse, withdrawAssetsErr := bitvavo.WithdrawAssets("BTC", "1", "BitcoinAddress", bvvOptions{})
 // if withdrawAssetsErr != nil {
-//   fmt.Println(withdrawAssetsErr)
+//   log.Println(withdrawAssetsErr)
 // } else {
 //   PrettyPrint(withdrawAssetsResponse)
 // }
 
 // depositHistoryResponse, depositHistoryErr := bitvavo.DepositHistory(bvvOptions{})
 // if depositHistoryErr != nil {
-//   fmt.Println(depositHistoryErr)
+//   log.Println(depositHistoryErr)
 // } else {
 //   for _, deposit := range depositHistoryResponse {
 //     PrettyPrint(deposit)
@@ -430,7 +431,7 @@ func (bh BvvHandler) PrettyPrint(v interface{}) {
 
 // withdrawalHistoryResponse, withdrawalHistoryErr := bitvavo.WithdrawalHistory(bvvOptions{})
 // if withdrawalHistoryErr != nil {
-//   fmt.Println(withdrawalHistoryErr)
+//   log.Println(withdrawalHistoryErr)
 // } else {
 //   for _, withdrawal := range withdrawalHistoryResponse {
 //     PrettyPrint(withdrawal)
