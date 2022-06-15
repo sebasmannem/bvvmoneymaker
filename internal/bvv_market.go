@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"log"
 	"sort"
 
 	"github.com/sebasmannem/bvvmoneymaker/pkg/moving_average"
@@ -101,18 +102,23 @@ func NewBvvMarket(bh *BvvHandler, symbol string, fiatSymbol, available string, i
 	market.inverse, err = market.reverse()
 	market.inverse.inverse = &market
 
-	if decMin.Equal(decimal.Zero) || decMax.Equal(decimal.Zero) {
-		fmt.Printf("Disabling Min/Max for %s\n", market.Name())
-		market.inverse.Max = decimal.Zero
+	if decMin.Equal(decimal.Zero) {
+		log.Printf("Disabling Min for %s\n", market.Name())
 		market.inverse.Min = decimal.Zero
-		market.Max = decimal.Zero
 		market.Min = decimal.Zero
 	} else {
 		// Because Max and Min are in EUR, not in Crypto, we set them in inverse and calculate for market from inverse
-		market.inverse.Max = decMax
 		market.inverse.Min = decMin
-		market.Max = market.inverse.exchange(decMax)
 		market.Min = market.inverse.exchange(decMin)
+	}
+	if decMax.Equal(decimal.Zero) {
+		log.Printf("Disabling Max for %s\n", market.Name())
+		market.inverse.Max = decimal.Zero
+		market.Max = decimal.Zero
+	} else {
+		// Because Max and Min are in EUR, not in Crypto, we set them in inverse and calculate for market from inverse
+		market.inverse.Max = decMax
+		market.Max = market.inverse.exchange(decMax)
 	}
 	if err != nil {
 		return BvvMarket{}, err
