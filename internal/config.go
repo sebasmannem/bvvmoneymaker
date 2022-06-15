@@ -56,18 +56,20 @@ func (mac *bvvMAConfig) SetDefaults() {
 
 type bvvMarketConfig struct {
 	// When more then this level of currency is available, we can sell
-	MinLevel   string      `yaml:"min"`
-	MaxLevel   string      `yaml:"max"`
-	RateWindow int         `yaml:"rateWindow"`
-	MAConfig   bvvMAConfig `yaml:"ema"`
+	BuyUnderwater bool        `yaml:"buy_underwater"`
+	MinLevel      string      `yaml:"min"`
+	MaxLevel      string      `yaml:"max"`
+	RateWindow    int         `yaml:"rateWindow"`
+	MAConfig      bvvMAConfig `yaml:"ema"`
 }
 
 type BvvConfig struct {
-	Api        bvvApiConfig               `yaml:"api"`
-	Fiat       string                     `yaml:"fiat"`
-	Markets    map[string]bvvMarketConfig `yaml:"markets"`
-	ActiveMode bool                       `yaml:"activeMode"`
-	Debug      bool                       `yaml:"debug"`
+	BuyUnderwater bool                       `yaml:"buy_underwater"`
+	Api           bvvApiConfig               `yaml:"api"`
+	Fiat          string                     `yaml:"fiat"`
+	Markets       map[string]bvvMarketConfig `yaml:"markets"`
+	ActiveMode    bool                       `yaml:"activeMode"`
+	Debug         bool                       `yaml:"debug"`
 }
 
 func NewConfig() (config BvvConfig, err error) {

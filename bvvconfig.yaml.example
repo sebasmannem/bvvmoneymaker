@@ -3,13 +3,22 @@ api:
   secret: 1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
   debug: false
 fiat: EUR
+buy_underwater: false
 markets:
   BTC:
+    buy_underwater: true
+    min: 95
+    max: 105
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
       limit: 400
   ETH:
+    buy_underwater: true
+    min: 95
+    max: 105
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
@@ -25,53 +34,54 @@ markets:
       window: 200
       limit: 400
   FTM:
-    min: 35
-    max: 45
+    max: 55
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
       limit: 400
   LINK:
-    min: 35
-    max: 45
+    max: 55
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
       limit: 400
   NAS:
     min: 35
-    max: 45
+    max: 55
+    rateWindow: 8
     ema:
       interval: '1d'
       window: 200
       limit: 400
   NEO:
-    min: 35
-    max: 45
+    max: 55
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
       limit: 400
   SOL:
-    min: 35
-    max: 45
+    max: 55
+    rateWindow: 10
     ema:
       interval: '1d'
       window: 200
       limit: 400
   VET:
-    min: 35
-    max: 45
+    max: 55
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
       limit: 400
   ZRX:
-    min: 35
-    max: 45
+    max: 55
+    rateWindow: 20
     ema:
       interval: '1d'
       window: 200
       limit: 400
 activeMode: true
-debug: true
+debug: false

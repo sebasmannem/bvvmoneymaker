@@ -2,9 +2,9 @@ package internal
 
 import (
 	"fmt"
-	"github.com/bitvavo/go-bitvavo-api"
 	"log"
 
+	"github.com/bitvavo/go-bitvavo-api"
 	"github.com/shopspring/decimal"
 )
 
@@ -87,7 +87,7 @@ func (bh BvvHandler) Evaluate() {
 			}
 		} else if avgRate, err := market.rate.Average(); err != nil {
 			log.Printf("Could not determine average rate from market %s", market.Name())
-		} else if avgRate.GreaterThan(market.Price) {
+		} else if avgRate.GreaterThan(market.Price) && !market.config.BuyUnderwater && !bh.config.BuyUnderwater {
 			log.Printf("market %s is %s%% under water (%s>%s)", market.Name(),
 				decimalPercent(avgRate, market.Price), avgRate, market.Price)
 		} else if market.Min.GreaterThan(decimal.Zero) && market.Min.GreaterThan(market.Total()) {
