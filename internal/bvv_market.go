@@ -2,9 +2,10 @@ package internal
 
 import (
 	"fmt"
+	"sort"
+
 	"github.com/sebasmannem/bvvmoneymaker/pkg/moving_average"
 	"github.com/shopspring/decimal"
-	"sort"
 )
 
 type BvvMarkets map[string]*BvvMarket

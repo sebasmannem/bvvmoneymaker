@@ -3,6 +3,7 @@ package internal
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/shopspring/decimal"
 )
 

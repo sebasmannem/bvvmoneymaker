@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+
 	"github.com/bitvavo/go-bitvavo-api"
 	"github.com/shopspring/decimal"
 )

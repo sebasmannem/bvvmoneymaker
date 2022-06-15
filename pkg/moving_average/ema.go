@@ -2,8 +2,9 @@ package moving_average
 
 import (
 	"fmt"
-	"github.com/shopspring/decimal"
 	"math"
+
+	"github.com/shopspring/decimal"
 )
 
 type EMAAvgVal struct {
@@ -33,7 +34,7 @@ func (av EMAAvgVal) Get() (value float64, err error) {
 			fmt.Errorf("cannot get EMAAvgVal with count 0"),
 		}
 	}
-	return av.sum / float64(av.count),nil
+	return av.sum / float64(av.count), nil
 }
 
 // EMA is calculated with historic values only and therefore will on average be lower than the current value.
@@ -92,7 +93,7 @@ func (ema EMA) GetWithOffset() (ret decimal.Decimal, err error) {
 		return
 	}
 	// This is where we can convert our exp back to a decimal
-	fRet := math.Exp(fValue+offset)
+	fRet := math.Exp(fValue + offset)
 	ret = decimal.NewFromFloat(fRet)
 	return ret, nil
 }

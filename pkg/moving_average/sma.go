@@ -2,9 +2,9 @@ package moving_average
 
 import (
 	"fmt"
+
 	"github.com/shopspring/decimal"
 )
-
 
 type SMAValues []decimal.Decimal
 type SimpleMovingAverages []SimpleMovingAverage
