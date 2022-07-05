@@ -119,6 +119,9 @@ func (bh *BvvHandler) getPrices(reset bool) (prices map[string]decimal.Decimal, 
 		return bh.prices, err
 	} else {
 		for _, price := range tickerPriceResponse {
+			if price.Price == "" {
+				continue
+			}
 			prices[price.Market], err = decimal.NewFromString(price.Price)
 			if err != nil {
 				return bh.prices, err
